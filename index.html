@@ -246,6 +246,13 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
               <option value="400">細</option><option value="500" selected>中</option>
               <option value="700">粗</option><option value="900">特粗</option></select></div>
           </div>
+          <div class="field two">
+            <div><label for="sigColMode">簽名顏色</label><select id="sigColMode">
+              <option value="">原色</option><option value="text">同落款文字</option><option value="custom">自訂</option></select></div>
+            <div><label for="sigCol">指定色</label>
+              <input type="color" id="sigCol" style="width:100%;height:38px;border:1px solid var(--rule);border-radius:8px;background:#fff"></div>
+          </div>
+          <p class="note" style="margin-top:6px">底圖較花時，把簽名改成白色通常最好認。改色是整張賀卡共用的設定。</p>
         </div>
       </section>
 
@@ -349,7 +356,8 @@ const FONTS=[
 function blankSign(){
   return {cx:.5337, y1:.9057, dy2:.0312, dySig:.0586, indent:.1242, gap:.0250, sigH:.0540,
           o1:{x:0,y:0}, o2:{x:0,y:0}, o3:{x:0,y:0}, oS:{x:0,y:0},
-          fontH:.0243, track:.0895, font:'sans', weight:'500', color:'#2078C2', thanks:'敬賀'};
+          fontH:.0243, track:.0895, font:'sans', weight:'500', color:'#2078C2',
+          sigColor:null, sigCustom:'#FFFFFF', thanks:'敬賀'};
 }
 function blank(){
   return {name:'', basePlain:null, baseSigned:null, W:1000, H:1500,
@@ -454,6 +462,31 @@ async function keyWhite(dataUrl){
   return t.toDataURL('image/png');
 }
 
+/* recolour a signature: keep the ink's shape and softness, swap the hue.
+   Darker pixels stay opaque, light ones fade — so pencil strokes keep their weight. */
+const tintCache=new Map();
+function hex2rgb(h){ const n=parseInt((h||'#000').slice(1),16); return [n>>16&255,n>>8&255,n&255]; }
+function tint(src,color){
+  const key=src+'|'+color;
+  if(tintCache.has(key)) return tintCache.get(key);
+  const p=(async()=>{
+    const im=await load(src);
+    const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+    const g=c.getContext('2d',{willReadFrequently:true}); g.drawImage(im,0,0);
+    let d; try{ d=g.getImageData(0,0,c.width,c.height); }catch(e){ return src; }
+    const a=d.data, [R,G_,B]=hex2rgb(color);
+    for(let i=0;i<a.length;i+=4){
+      if(a[i+3]===0) continue;
+      const lum=(a[i]*.299+a[i+1]*.587+a[i+2]*.114)/255;
+      a[i]=R; a[i+1]=G_; a[i+2]=B;
+      a[i+3]=Math.round(a[i+3]*(1-lum*0.9));
+    }
+    g.putImageData(d,0,0);
+    return c.toDataURL('image/png');
+  })();
+  tintCache.set(key,p); return p;
+}
+
 /* ---------- text ---------- */
 const cv=$('preview'), ctx=cv.getContext('2d');
 const ov=$('overlay'), octx=ov.getContext('2d');
@@ -520,7 +553,11 @@ async function render(){
     const G=T.sign;
     ctx.font=fontStr(FS); ctx.fillStyle=G.color; ctx.textBaseline='alphabetic';
     let si=null,sw=0,sh=0;
-    if(r.sig){ si=await load(r.sig); if(me!==token) return; sh=G.sigH*T.H; sw=sh*si.naturalWidth/si.naturalHeight; }
+    if(r.sig){
+      let src=r.sig;
+      if(G.sigColor){ src=await tint(r.sig, G.sigColor==='text'?G.color:G.sigColor); if(me!==token) return; }
+      si=await load(src); if(me!==token) return; sh=G.sigH*T.H; sw=sh*si.naturalWidth/si.naturalHeight;
+    }
     const wT=runInk(r.l2,LS).w, wK=runInk(G.thanks,LS).w, gap=G.gap*T.W;
     const parts=[wT,sw,wK].filter(v=>v>0);
     const w2=parts.reduce((a,b)=>a+b,0)+gap*Math.max(0,parts.length-1);
@@ -738,6 +775,22 @@ $('col').oninput=e=>{ T.sign.color=e.target.value; render(); };
 $('tname').oninput=e=>{ T.name=e.target.value; $('headSub').textContent=T.name||'未命名'; updateSlug(); };
 FONTS.forEach(f=>{ const o=document.createElement('option'); o.value=f.id; o.textContent=f.label; $('fontSel').appendChild(o); });
 $('fontSel').onchange=e=>{ T.sign.font=e.target.value; render(); };
+function updateSigColUI(){
+  const m=T.sign.sigColor==null?'':(T.sign.sigColor==='text'?'text':'custom');
+  $('sigColMode').value=m;
+  $('sigCol').value=T.sign.sigCustom||'#FFFFFF';
+  $('sigCol').disabled=(m!=='custom');
+}
+$('sigColMode').onchange=e=>{
+  const v=e.target.value;
+  T.sign.sigColor = v===''?null : (v==='text'?'text':(T.sign.sigCustom||'#FFFFFF'));
+  updateSigColUI(); render();
+};
+$('sigCol').oninput=e=>{
+  T.sign.sigCustom=e.target.value;
+  if(T.sign.sigColor&&T.sign.sigColor!=='text') T.sign.sigColor=e.target.value;
+  render();
+};
 $('wtSel').onchange=e=>{ T.sign.weight=e.target.value; render(); };
 
 /* ---------- files ---------- */
@@ -842,6 +895,7 @@ function adopt(j,msg){
   DEF=clone({logo:T.logo,sign:T.sign});
   S.cur=0; S.sel=null; calibrated=false; fontKey='';
   $('fontSel').value=T.sign.font||'sans'; $('wtSel').value=T.sign.weight||'500'; $('col').value=T.sign.color;
+  updateSigColUI();
   paintBase(); paintOrgs(); paintRows(); paintEditor(); syncAll(); syncSel(); render();
   if(msg) toast(msg);
 }
@@ -957,7 +1011,7 @@ $('copy').onclick=async ()=>{ await render();
 
 /* ---------- go ---------- */
 FONTS.length && ($('fontSel').value=T.sign.font);
-$('wtSel').value=T.sign.weight; $('col').value=T.sign.color; $('l3').value=T.sign.thanks;
+$('wtSel').value=T.sign.weight; $('col').value=T.sign.color; $('l3').value=T.sign.thanks; updateSigColUI();
 paintBase(); paintOrgs(); paintRows(); paintEditor(); paintLib(); syncSel(); render();
 document.fonts.ready.then(()=>{ calibrated=false; render(); });
 </script>
