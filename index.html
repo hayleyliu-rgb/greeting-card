@@ -208,7 +208,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <button class="btn grow" id="addOrg">＋ 上傳 LOGO</button>
           <button class="btn" id="delOrg">刪除這個</button>
         </div>
-        <p class="note">選機構會同時換掉左上角的識別，並帶入落款第一行。</p>
+        <p class="note">機構 LOGO 是<b>所有賀卡共用</b>的，換底圖、開新的一年都不會消失。選機構會同時換掉左上角的識別，並帶入落款第一行。</p>
       </section>
 
       <section class="sect needs-base">
@@ -350,6 +350,18 @@ const FONTS=[
   {id:'sys',   label:'系統預設',  css:'"PingFang TC","Microsoft JhengHei"'}
 ];
 
+/* 機構 LOGO 跨賀卡共用：底圖每年換，機構不會換。存在瀏覽器裡，
+   換底圖、開新賀卡都不會掉。 */
+const ORGKEY='cardgen.orgs.v1';
+function defaultOrgs(){ return [
+  {id:'hospital', label:'聯新國際醫院',        logo:A.logoHospital, line1:'聯新國際醫院'},
+  {id:'medical',  label:'聯新國際醫療',        logo:A.logoMedical,  line1:'聯新國際醫療'},
+  {id:'bansin',   label:'聯新國際醫療 板新醫院', logo:A.logoBansin,   line1:'聯新國際醫療'}
+];}
+let ORGS=(()=>{ try{ const j=JSON.parse(localStorage.getItem(ORGKEY)||'null');
+  if(Array.isArray(j)&&j.length) return j; }catch(e){} return defaultOrgs(); })();
+function saveOrgs(){ try{ localStorage.setItem(ORGKEY,JSON.stringify(ORGS)); }catch(e){} }
+
 /* geometry stored as ratios of the base image, so a card survives being
    pointed at a differently-sized artwork. Defaults measured off the
    six original 端午 cards. */
@@ -361,24 +373,24 @@ function blankSign(){
 }
 function blank(){
   return {name:'', basePlain:null, baseSigned:null, W:1000, H:1500,
-          logo:{x:.0499,y:.0423}, sign:blankSign(), orgs:[], rows:[]};
+          logo:{x:.0499,y:.0423,h:.0500}, logoW:{}, sign:blankSign(), rows:[]};
 }
 function demo(){
   const t=blank();
   t.name='2026 端午・幸福粽夏';
   t.basePlain=A.basePlain; t.baseSigned=A.baseSigned; t.W=1023; t.H=1537;
-  t.orgs=[
-    {id:'hospital', label:'聯新國際醫院',        logo:A.logoHospital, w:.47507, line1:'聯新國際醫院'},
-    {id:'medical',  label:'聯新國際醫療',        logo:A.logoMedical,  w:.44575, line1:'聯新國際醫療'},
-    {id:'bansin',   label:'聯新國際醫療 板新醫院', logo:A.logoBansin,   w:.59042, line1:'聯新國際醫療'}
-  ];
-  t.rows=t.orgs.map(o=>({id:'r'+o.id, orgId:o.id, signed:false, l1:o.line1, l2:'', sig:null, on:true}));
+  t.logo={x:.04985,y:.04229,h:.0500};
+  t.logoW={hospital:.47507, medical:.44575, bansin:.59042};
+  t.rows=ORGS.map(o=>({id:'r'+o.id, orgId:o.id, signed:false, l1:o.line1, l2:'', sig:null, on:true}));
   return t;
 }
-let T=blank(), DEF=clone({logo:T.logo,sign:T.sign});
+function freshRows(){ return ORGS.length
+  ? ORGS.map(o=>({id:'r'+o.id+Date.now(), orgId:o.id, signed:false, l1:o.line1||o.label, l2:'', sig:null, on:true}))
+  : [{id:'r'+Date.now(), orgId:null, signed:false, l1:'', l2:'', sig:null, on:true}]; }
+let T=blank(), DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
 const S={cur:0, sel:null};
 const row=()=>T.rows[S.cur]||null;
-const curOrg=()=>{ const r=row(); return r?T.orgs.find(o=>o.id===r.orgId)||null:null; };
+const curOrg=()=>{ const r=row(); return r?ORGS.find(o=>o.id===r.orgId)||null:null; };
 
 /* ---------- images ---------- */
 const cache=new Map();
@@ -545,7 +557,10 @@ async function render(){
 
   if(org&&org.logo){
     const li=await load(org.logo); if(me!==token) return;
-    const w=org.w*T.W, h=w*li.naturalHeight/li.naturalWidth, x=T.logo.x*T.W, y=T.logo.y*T.H;
+    if(T.logoW[org.id]==null)
+      T.logoW[org.id]=(T.logo.h*T.H)*li.naturalWidth/li.naturalHeight/T.W;
+    const w=T.logoW[org.id]*T.W, h=w*li.naturalHeight/li.naturalWidth,
+          x=T.logo.x*T.W, y=T.logo.y*T.H;
     ctx.drawImage(li,x,y,w,h); hits.logo={x,y,w,h};
   }
 
@@ -650,7 +665,8 @@ function syncSel(){
   $('selHint').classList.toggle('hide',!!id);
   if(!id) return;
   let x,y,z=null,zl='';
-  if(id==='logo'){ const o=curOrg(); x=T.logo.x*K; y=T.logo.y*K; z=(o?o.w:0)*K/10; zl='LOGO 大小'; }
+  if(id==='logo'){ const o=curOrg(); x=T.logo.x*K; y=T.logo.y*K;
+    z=(o&&T.logoW[o.id]!=null?T.logoW[o.id]:0)*K/10; zl='LOGO 大小'; }
   else if(id==='sig'){ x=T.sign.oS.x*K; y=T.sign.oS.y*K; z=T.sign.sigH*K; zl='簽名大小'; }
   else { const o=T.sign[OFF[id]]; x=o.x*K; y=o.y*K; }
   $('sX').value=x.toFixed(1); $('oX').textContent=x.toFixed(1);
@@ -663,7 +679,7 @@ $('sX').oninput=e=>{ const v=+e.target.value; $('oX').textContent=v.toFixed(1);
 $('sY').oninput=e=>{ const v=+e.target.value; $('oY').textContent=v.toFixed(1);
   if(S.sel==='logo') T.logo.y=v/K; else if(S.sel) T.sign[OFF[S.sel]].y=v/K; render(); };
 $('sZ').oninput=e=>{ const v=+e.target.value; $('oZ').textContent=v.toFixed(1);
-  if(S.sel==='logo'){ const o=curOrg(); if(o) o.w=v*10/K; }
+  if(S.sel==='logo'){ const o=curOrg(); if(o) T.logoW[o.id]=v*10/K; }
   else if(S.sel==='sig') T.sign.sigH=v/K; render(); };
 
 const bind=(el,out,get,set)=>{
@@ -679,7 +695,7 @@ const sInd=bind('sIndent','oIndent',()=>T.sign.indent*K,v=>T.sign.indent=v/K);
 const sGap=bind('sGap','oGap',()=>T.sign.gap*K,v=>T.sign.gap=v/K);
 const syncAll=()=>[sFont,sTrack,sLead,sInd,sGap].forEach(f=>f());
 $('resetTune').onclick=()=>{
-  T.logo=clone(DEF.logo);
+  T.logo=clone(DEF.logo); T.logoW=clone(DEF.logoW||{});
   const keep={font:T.sign.font,weight:T.sign.weight,color:T.sign.color,thanks:T.sign.thanks};
   T.sign=Object.assign(clone(DEF.sign),keep);
   calibrated=false; syncAll(); syncSel(); render(); toast('已回到這張賀卡的預設版面');
@@ -691,7 +707,7 @@ function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on')
 function paintOrgs(){
   const box=$('orgs'); box.innerHTML='';
   const r=row();
-  T.orgs.forEach(o=>{
+  ORGS.forEach(o=>{
     const b=document.createElement('button');
     b.className='org'; b.setAttribute('aria-pressed',String(!!r&&o.id===r.orgId));
     b.innerHTML=(o.logo?`<img src="${o.logo}" alt="${o.label}">`:`<span class="nm">${o.label}</span>`)+'<i class="tick"></i>';
@@ -699,11 +715,11 @@ function paintOrgs(){
       paintOrgs(); paintRows(); syncSel(); render(); };
     box.appendChild(b);
   });
-  if(!T.orgs.length) box.innerHTML='<p class="note" style="margin:0">還沒有機構，按下面上傳一個 LOGO。</p>';
-  $('orgCount').textContent=T.orgs.length?T.orgs.length+' 個':'';
+  if(!ORGS.length) box.innerHTML='<p class="note" style="margin:0">還沒有機構，按下面上傳一個 LOGO。</p>';
+  $('orgCount').textContent=ORGS.length?ORGS.length+' 個':'';
 }
 function rowTitle(r){
-  const o=T.orgs.find(o=>o.id===r.orgId);
+  const o=ORGS.find(o=>o.id===r.orgId);
   return (o?o.label:'（未指定機構）');
 }
 function rowSub(r){
@@ -799,8 +815,9 @@ async function useBase(file){
   const fresh=!T.basePlain;
   T.basePlain=src; T.W=im.naturalWidth; T.H=im.naturalHeight; T.baseSigned=null;
   if(!T.name) T.name=file.name.replace(/\.[^.]+$/,'');
-  if(fresh&&!T.rows.length) T.rows=[{id:'r'+Date.now(),orgId:T.orgs[0]?T.orgs[0].id:null,signed:false,l1:'',l2:'',sig:null,on:true}];
-  DEF=clone({logo:T.logo,sign:T.sign});
+  T.logoW={};
+  if(fresh&&!T.rows.length) T.rows=freshRows();
+  DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
   calibrated=false; paintBase(); paintRows(); paintEditor(); render();
   toast(fresh?'底圖已載入 — 接著上傳機構 LOGO':'底圖已更換');
 }
@@ -820,20 +837,19 @@ $('addOrg').onclick=()=>$('fLogo').click();
 $('fLogo').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value='';
   const src=await importImage(f); if(!src) return;
-  const im=await load(src), label=f.name.replace(/\.[^.]+$/,'');
-  const w=Math.min(.7,(T.logo.y*T.H*1.3)*im.naturalWidth/im.naturalHeight/T.W);
-  const o={id:'u'+Date.now()+Math.random().toString(36).slice(2,5),label,logo:src,w,line1:label};
-  T.orgs.push(o);
+  const label=f.name.replace(/\.[^.]+$/,'');
+  const o={id:'u'+Date.now()+Math.random().toString(36).slice(2,5),label,logo:src,line1:label};
+  ORGS.push(o); saveOrgs();
   const r=row(); if(r){ r.orgId=o.id; if(!r.l1) r.l1=label; $('l1').value=r.l1; }
   S.sel='logo'; paintOrgs(); paintRows(); syncSel(); render();
   toast('已加入機構 — 拖曳或用微調把 LOGO 對齊');
 };
 $('delOrg').onclick=()=>{
-  const r=row(); if(!r||!T.orgs.length) return;
-  const i=T.orgs.findIndex(o=>o.id===r.orgId); if(i<0) return;
-  T.orgs.splice(i,1);
-  const o=T.orgs[Math.max(0,i-1)]||null;
-  T.rows.forEach(x=>{ if(!T.orgs.some(g=>g.id===x.orgId)) x.orgId=o?o.id:null; });
+  const r=row(); if(!r||!ORGS.length) return;
+  const i=ORGS.findIndex(o=>o.id===r.orgId); if(i<0) return;
+  ORGS.splice(i,1); saveOrgs();
+  const o=ORGS[Math.max(0,i-1)]||null;
+  T.rows.forEach(x=>{ if(!ORGS.some(g=>g.id===x.orgId)) x.orgId=o?o.id:null; });
   paintOrgs(); paintRows(); syncSel(); render();
 };
 $('pickSig').onclick=()=>$('fSig').click();
@@ -844,7 +860,7 @@ $('fSig').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; e.target
 
 $('addRow').onclick=()=>{
   const p=row();
-  T.rows.push({id:'r'+Date.now(),orgId:p?p.orgId:(T.orgs[0]?T.orgs[0].id:null),
+  T.rows.push({id:'r'+Date.now(),orgId:p?p.orgId:(ORGS[0]?ORGS[0].id:null),
     signed:false,l1:p?p.l1:'',l2:'',sig:null,on:true});
   S.cur=T.rows.length-1; paintRows(); paintEditor(); render();
 };
@@ -854,7 +870,7 @@ $('fSigs').onchange=async e=>{
   const p=row(); let n=0;
   for(const f of files){
     const src=await importImage(f); if(!src) continue;
-    T.rows.push({id:'r'+Date.now()+n, orgId:p?p.orgId:(T.orgs[0]?T.orgs[0].id:null),
+    T.rows.push({id:'r'+Date.now()+n, orgId:p?p.orgId:(ORGS[0]?ORGS[0].id:null),
       signed:true, l1:p?p.l1:'', l2:f.name.replace(/\.[^.]+$/,''), sig:src, on:true});
     n++;
   }
@@ -889,10 +905,17 @@ function adopt(j,msg){
   T.sign=Object.assign(blankSign(),j.sign||{});
   ['o1','o2','o3','oS'].forEach(k=>T.sign[k]=Object.assign({x:0,y:0},T.sign[k]));
   T.logo=Object.assign(b.logo,j.logo||{});
-  T.orgs=j.orgs||[]; T.rows=j.rows||[];
-  if(!T.rows.length) T.rows=[{id:'r0',orgId:T.orgs[0]?T.orgs[0].id:null,signed:false,
-    l1:T.orgs[0]?T.orgs[0].line1:'',l2:'',sig:null,on:true}];
-  DEF=clone({logo:T.logo,sign:T.sign});
+  /* merge any機構 that came with the file, keep the ones already here */
+  if(Array.isArray(j.orgs)&&j.orgs.length){
+    let added=0;
+    j.orgs.forEach(o=>{ if(!ORGS.some(g=>g.id===o.id)){ ORGS.push({id:o.id,label:o.label,logo:o.logo,line1:o.line1}); added++; }
+      if(o.w!=null&&(!j.logoW||j.logoW[o.id]==null)) T.logoW[o.id]=o.w; });
+    if(added) saveOrgs();
+  }
+  T.logoW=Object.assign(T.logoW||{}, j.logoW||{});
+  T.rows=j.rows||[];
+  if(!T.rows.length) T.rows=freshRows();
+  DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
   S.cur=0; S.sel=null; calibrated=false; fontKey='';
   $('fontSel').value=T.sign.font||'sans'; $('wtSel').value=T.sign.weight||'500'; $('col').value=T.sign.color;
   updateSigColUI();
@@ -905,14 +928,15 @@ $('saveLib').onclick=async ()=>{
   const lib=libRead();
   if(lib[name]&&!confirm('已經有「'+name+'」了，要覆蓋嗎？')) return;
   T.name=name; $('tname').value=name; $('headSub').textContent=name;
-  lib[name]=T; if(libWrite(lib)){ paintLib(); toast('已存成「'+name+'」'); }
+  lib[name]=Object.assign({},T,{orgs:ORGS}); if(libWrite(lib)){ paintLib(); toast('已存成「'+name+'」'); }
 };
 $('overwrite').onclick=()=>{
   const lib=libRead();
   if(!T.name||!lib[T.name]){ toast('這個名稱還沒存過，請按「存成一張新的」'); return; }
-  lib[T.name]=T; if(libWrite(lib)){ paintLib(); toast('已更新「'+T.name+'」'); }
+  lib[T.name]=Object.assign({},T,{orgs:ORGS}); if(libWrite(lib)){ paintLib(); toast('已更新「'+T.name+'」'); }
 };
-$('expFile').onclick=()=>save(new Blob([JSON.stringify(T)],{type:'application/json'}),(T.name||'賀卡')+'.賀卡設定.json');
+$('expFile').onclick=()=>save(new Blob([JSON.stringify(Object.assign({},T,{orgs:ORGS}))],
+  {type:'application/json'}),(T.name||'賀卡')+'.賀卡設定.json');
 $('impFile').onclick=()=>$('fTpl').click();
 $('fTpl').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
