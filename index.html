@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>賀卡產生器</title>
+<script>
+/* 模式判定放在最前面：乾淨網址＝前台，?admin＝後台。
+   掛在 <html> 上，這樣就算後面的程式出錯，前台也不會露出後台。 */
+window.MODE = /(^|[?&])admin(=|&|$)/.test(location.search) ? 'admin' : 'front';
+document.documentElement.classList.toggle('front', window.MODE === 'front');
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@400;500;700;900&family=LXGW+WenKai+TC:wght@300;400;700&family=Chocolate+Classical+Sans&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -177,10 +183,10 @@ details[open] summary::before{content:"▾ "}
 .modal p{margin:0 0 14px;font-size:12.5px;color:var(--muted);line-height:1.6}
 .hide{display:none !important}
 body.empty .needs-base{display:none !important}
-body.front .admin-only{display:none !important}
-body:not(.front) .front-only{display:none !important}
-body.front #overlay{pointer-events:none}
-body.front .proof>.mk{display:none}
+html.front .admin-only{display:none !important}
+html:not(.front) .front-only{display:none !important}
+html.front #overlay{pointer-events:none}
+html.front .proof>.mk{display:none}
 .people{border:0.5px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--panel);max-height:50vh;overflow-y:auto}
 .pr{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:0.5px solid var(--rule-2);cursor:pointer}
 .pr:first-child{border-top:0}
@@ -324,6 +330,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <button class="btn grow" id="cloudPull">同步名單</button>
           <button class="btn primary grow" id="cloudPush">發佈這張</button>
         </div>
+        <button class="btn wide" id="cloudLoad">從雲端載回上次發佈的版面</button>
         <p class="note" id="cloudNote">留空就用內建名單。發佈後醫院端重新整理就會看到這張。</p>
       </section>
 
@@ -370,7 +377,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
       <i class="mk tl"></i><i class="mk tr"></i><i class="mk bl"></i><i class="mk br"></i>
       <div class="canvases"><canvas id="preview" width="1023" height="1537"></canvas><canvas id="overlay"></canvas></div>
     </div>
-    <p class="hint">直接拖曳 LOGO、每一行落款、簽名 — 靠近版面中線或其他元件時會<b>自動對齊</b>並顯示參考線（按住 Alt 暫時關閉）。<br>按住 <b>Shift 拖曳</b>可整組落款一起移動；點選後用<b>方向鍵</b>微調。</p>
+    <p class="hint admin-only">直接拖曳 LOGO、每一行落款、簽名 — 靠近版面中線或其他元件時會<b>自動對齊</b>並顯示參考線（按住 Alt 暫時關閉）。<br>按住 <b>Shift 拖曳</b>可整組落款一起移動；點選後用<b>方向鍵</b>微調。</p>
     <div class="slug"><i class="dot"></i><span class="nm" id="slugName">—</span><span class="dim" id="slugDim"></span></div>
   </main>
 </div>
@@ -1247,13 +1254,14 @@ $('copy').onclick=async ()=>{ await render();
 /* ---------- go ---------- */
 FONTS.length && ($('fontSel').value=T.sign.font);
 $('wtSel').value=T.sign.weight; $('col').value=T.sign.color; $('l3').value=T.sign.thanks; updateSigColUI();
-paintBase(); paintOrgs(); paintRows(); paintEditor(); paintLib(); syncSel(); render();
+[paintBase,paintOrgs,paintRows,paintEditor,paintLib,syncSel,render].forEach(fn=>{
+  try{ fn(); }catch(err){ console.error('init:',fn.name,err); }
+});
 
 /* ================= 前台模式 =================
    乾淨網址＝前台（醫院端），網址加 ?admin ＝後台（行銷）。
    前台只做兩件事：挑人、下載。版面全部沿用後台存好的設定。 */
-const MODE = /(^|[?&])admin(=|&|$)/.test(location.search) ? 'admin' : 'front';
-document.body.classList.toggle('front', MODE==='front');
+const MODE = window.MODE || 'front';
 
 const CLOUDKEY='cardgen.cloud.v1', RCACHE='cardgen.roster.cache.v1';
 function cloudUrl(){ try{ return localStorage.getItem(CLOUDKEY)||''; }catch(e){ return ''; } }
@@ -1367,6 +1375,13 @@ if(MODE==='admin'){
   $('cloudKey').value=cloudKey();
   $('cloudUrl').oninput=e=>{ try{ localStorage.setItem(CLOUDKEY,e.target.value.trim()); }catch(err){} };
   $('cloudKey').oninput=e=>{ try{ localStorage.setItem(CKEY,e.target.value.trim()); }catch(err){} };
+  $('cloudLoad').onclick=async()=>{
+    if(!cloudUrl()){ $('cloudNote').textContent='先填 Apps Script 網址。'; return; }
+    $('cloudNote').textContent='讀取中…'; $('cloudLoad').disabled=true;
+    const c=await pullCard(); $('cloudLoad').disabled=false;
+    if(!c){ $('cloudNote').textContent='雲端上還沒有發佈過的版面。'; return; }
+    adopt(c); $('cloudNote').textContent='已載回「'+(c.name||'賀卡')+'」，底圖、位置、機構、簽名檔都回來了。';
+  };
   $('cloudPush').onclick=async()=>{
     $('cloudNote').textContent='發佈中…'; $('cloudPush').disabled=true;
     const r=await pushCard(); $('cloudNote').textContent=r.msg; $('cloudPush').disabled=false;
