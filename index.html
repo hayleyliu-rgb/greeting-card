@@ -1370,7 +1370,8 @@ function paintPeople(){
   $('fCount').textContent=people().length+' 位';
 }
 $('fSearch').oninput=paintPeople;
-if(MODE==='admin'){
+if(MODE==='admin') try{
+  /* 把記住的設定填回欄位。獨立 try，任何一段壞掉都不該讓設定看起來像不見了 */
   $('cloudUrl').value=cloudUrl();
   $('cloudKey').value=cloudKey();
   $('cloudUrl').oninput=e=>{ try{ localStorage.setItem(CLOUDKEY,e.target.value.trim()); }catch(err){} };
@@ -1398,7 +1399,8 @@ if(MODE==='admin'){
     else $('cloudNote').textContent='還沒設定網址，目前用內建名單。';
   };
   $('cloudPull').onclick=pull;
-}
+  if(cloudUrl()) $('cloudNote').textContent='已記住這台電腦上的設定。';
+}catch(err){ console.error('cloud init:',err); }
 $('fDl').onclick=async ()=>{ await render(); save(await blobFor('png'), baseName()+'.png'); };
 $('fCopy').onclick=()=>$('copy').click();
 
@@ -1420,7 +1422,7 @@ async function startFront(){
   $('fNote').textContent=bits.join('　·　');
   applyPerson(people()[0]);
 }
-if(MODE==='front') startFront();
+if(MODE==='front') startFront().catch(err=>console.error('startFront:',err));
 
 document.fonts.ready.then(()=>{ calibrated=false; render(); });
 </script>
