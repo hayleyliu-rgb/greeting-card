@@ -301,22 +301,22 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
             <div><label for="sigCol">指定色</label>
               <input type="color" id="sigCol" style="width:100%;height:38px;border:1px solid var(--rule);border-radius:8px;background:#fff"></div>
           </div>
-          <p class="note" style="margin-top:6px">底圖較花時，把簽名改成白色通常最好認。改色是整張賀卡共用的設定。</p>
+          <p class="note" style="margin-top:6px">底圖較花時，把簽名改成白色通常最好認。<b>字體、字重與顏色是所有張共用</b>的設定，改一次全部跟著改；位置與大小則是逐張獨立。</p>
         </div>
       </section>
 
       <section class="sect needs-base admin-only">
         <div class="hdr"><span class="n">05</span><h2>微調</h2></div>
         <div class="selbox">
-          <p class="hd">選取的元件：<b id="selName">尚未選取</b></p>
+          <p class="hd">選取的元件：<b id="selName">尚未選取</b>　<span style="color:var(--faint)">以下都只影響這一張</span></p>
           <div id="selCtl" class="hide">
             <div class="slider"><span>左右</span><input type="range" id="sX" min="-200" max="200" step="0.5" value="0"><output id="oX"></output></div>
             <div class="slider"><span>上下</span><input type="range" id="sY" min="-200" max="200" step="0.5" value="0"><output id="oY"></output></div>
             <div class="slider" id="szRow"><span id="szLbl">大小</span><input type="range" id="sZ" min="5" max="200" step="0.5" value="0"><output id="oZ"></output></div>
           </div>
           <div id="perCtl" class="hide" style="margin-top:9px;padding-top:9px;border-top:0.5px solid var(--rule)">
-            <p class="hd">只調 <b id="perName"></b>　<span style="color:var(--faint)">不影響其他人</span></p>
-            <p class="note" style="margin:0 0 4px">選到落款＝調他整組落款；選到簽名＝調他的簽名。沒有簽名檔的人，「大小」調的是姓名文字。</p>
+            <p class="hd">只調 <b id="perName"></b>　<span style="color:var(--faint)">不影響其他張</span></p>
+            <p class="note" style="margin:0 0 4px">選到落款＝調這張整組落款；選到簽名＝調這張的簽名。沒有簽名檔的人，「大小」調的是姓名文字。</p>
             <div class="slider" id="szPer"><span>大小</span><input type="range" id="pZ" min="40" max="220" step="1"><output id="oPZ"></output></div>
             <div class="slider"><span>左右</span><input type="range" id="pX" min="-150" max="150" step="0.5"><output id="oPX"></output></div>
             <div class="slider"><span>上下</span><input type="range" id="pY" min="-150" max="150" step="0.5"><output id="oPY"></output></div>
@@ -325,18 +325,20 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <p class="note" id="selHint" style="margin:6px 0 0">在預覽上點一下任一元件，或直接拖曳。</p>
         </div>
         <details style="margin-top:10px">
-          <summary>整組落款的排版</summary>
+          <summary>這一張的排版（字級／字距／行距…）</summary>
           <div class="slider"><span>字級</span><input type="range" id="sFont" min="8" max="60" step="0.5"><output id="oFont"></output></div>
           <div class="slider"><span>字距</span><input type="range" id="sTrack" min="-6" max="24" step="0.25"><output id="oTrack"></output></div>
           <div class="slider"><span>行距</span><input type="range" id="sLead" min="6" max="90" step="0.5"><output id="oLead"></output></div>
           <div class="slider"><span>縮排</span><input type="range" id="sIndent" min="0" max="400" step="1"><output id="oIndent"></output></div>
           <div class="slider"><span>間隙</span><input type="range" id="sGap" min="0" max="90" step="0.5"><output id="oGap"></output></div>
           <div class="slider"><span>文字署名</span><input type="range" id="sName" min="80" max="220" step="1"><output id="oName"></output></div>
-          <div class="field"><label for="col">落款顏色</label>
+          <div class="field"><label for="col">落款顏色（所有張共用）</label>
             <input type="color" id="col" style="width:100%;height:36px;border:1px solid var(--rule);border-radius:8px;background:#fff"></div>
+          <p class="note" style="margin:4px 0 0">除了字體、字重與顏色是整份賀卡共用之外，其餘全部逐張獨立。</p>
         </details>
-        <button class="btn wide" id="resetTune">整組落款回到預設位置</button>
-        <button class="btn wide" id="resetAllPer">清除所有人的個別微調</button>
+        <button class="btn wide" id="resetTune">這一張回到預設版面</button>
+        <button class="btn wide" id="setDefault">把這一張設為預設版面</button>
+        <button class="btn wide" id="resetAllPer">清除所有張的個別微調</button>
       </section>
 
       <section class="sect admin-only">
@@ -396,7 +398,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
       <i class="mk tl"></i><i class="mk tr"></i><i class="mk bl"></i><i class="mk br"></i>
       <div class="canvases"><canvas id="preview" width="1023" height="1537"></canvas><canvas id="overlay"></canvas></div>
     </div>
-    <p class="hint admin-only">拖曳落款或簽名 <b>只會調目前這個人</b>，不影響其他人。<br>要讓<b>所有人一起動</b>請按住 <b>Shift 拖曳</b>；點選後可用<b>方向鍵</b>微調，按住 Alt 暫時關閉自動對齊。</p>
+    <p class="hint admin-only">拖曳、滑桿、方向鍵 <b>都只會調目前這一張</b>，不影響其他張。<br>要讓<b>所有張一起動</b>請按住 <b>Shift 拖曳</b>；按住 Alt 暫時關閉自動對齊。</p>
     <div class="slug"><i class="dot"></i><span class="nm" id="slugName">—</span><span class="dim" id="slugDim"></span></div>
   </main>
 </div>
@@ -499,15 +501,18 @@ function sigOfRow(r){
   }
   return null;
 }
-const sigWeight=r=>{ const s=sigOfRow(r); return (s&&s.k)||1; };
-/* 逐人的位移，存在該人身上，不影響其他人 */
-const sigDX=r=>{ const s=sigOfRow(r); return Math.max(-.3,Math.min(.3,(s&&s.dx)||0)); };
-const sigDY=r=>{ const s=sigOfRow(r); return Math.max(-.3,Math.min(.3,(s&&s.dy)||0)); };
-/* 逐人的「整組落款」位移：調好一個人之後，別人動了也不會影響他 */
-const CLAMP=0.35;                       // 逐人位移上限（畫布寬/高的 ±35%）
+/* 逐「張」的微調：全部存在這一列自己的 r.ov 上，調 A 張不會動到 B 張。
+   舊檔案裡存在「人」身上的 k/dx/dy/bx/by 仍然當作預設值讀進來，
+   但只要在這張動過一次，就以這張的值為準。 */
+const CLAMP=0.35;                       // 逐張位移上限（畫布寬/高的 ±35%）
 const cl=v=>Math.max(-CLAMP,Math.min(CLAMP,v||0));
-const blkX=r=>{ const s=sigOfRow(r); return cl(s&&s.bx); };
-const blkY=r=>{ const s=sigOfRow(r); return cl(s&&s.by); };
+const ovOf=r=>{ if(!r) return {}; if(!r.ov) r.ov={}; return r.ov; };
+const per=(r,k,fb)=>{ const o=r&&r.ov; return (o&&o[k]!==undefined)?o[k]:fb; };
+const sigWeight=r=>{ const s=sigOfRow(r); return per(r,'k',(s&&s.k)||1); };
+const sigDX=r=>{ const s=sigOfRow(r); return cl(per(r,'sx',(s&&s.dx)||0)); };
+const sigDY=r=>{ const s=sigOfRow(r); return cl(per(r,'sy',(s&&s.dy)||0)); };
+const blkX=r=>{ const s=sigOfRow(r); return cl(per(r,'bx',(s&&s.bx)||0)); };
+const blkY=r=>{ const s=sigOfRow(r); return cl(per(r,'by',(s&&s.by)||0)); };
 let SIGS=(()=>{
   let j=null; try{ j=JSON.parse(localStorage.getItem(SIGKEY)||'null'); }catch(e){}
   const def=defaultSigs();
@@ -568,6 +573,39 @@ let T=blank(), DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
 const S={cur:0, sel:null};
 const row=()=>T.rows[S.cur]||null;
 const curOrg=()=>{ const r=row(); return r?ORGS.find(o=>o.id===r.orgId)||null:null; };
+
+/* ---- 逐張版面 ----------------------------------------------------------
+   T.sign 是「這份賀卡的預設版面」，r.ov 是「這一張自己的覆寫」。
+   讀的時候 r.ov 優先，寫的時候一律寫進 r.ov —— 所以每一張都是獨立的。
+   只有下面 SHARED 這幾項（字體、字重、落款顏色、簽名顏色、結尾用語）
+   刻意維持整份賀卡共用，改一次全部跟著改。 */
+const SHARED={font:1,weight:1,color:1,sigColor:1,sigCustom:1,thanks:1};
+const NEST={o1:1,o2:1,o3:1,oS:1};
+const _px=new WeakMap();
+function signOf(r){
+  if(!r) return T.sign;
+  const c=_px.get(r);
+  if(c&&c.base===T.sign) return c.px;
+  const px=new Proxy(T.sign,{
+    get(t,k){
+      if(SHARED[k]) return t[k];
+      const ov=ovOf(r);
+      if(NEST[k]){ if(!ov[k]) ov[k]=Object.assign({x:0,y:0},t[k]); return ov[k]; }
+      return ov[k]!==undefined?ov[k]:t[k];
+    },
+    set(t,k,v){ if(SHARED[k]) t[k]=v; else ovOf(r)[k]=v; return true; }
+  });
+  _px.set(r,{base:T.sign,px});
+  return px;
+}
+const SG=()=>signOf(row());
+/* LOGO 的位置與大小也是逐張的 */
+const lgOf=r=>{ const o=ovOf(r); if(!o.logo) o.logo=Object.assign({},T.logo); return o.logo; };
+const lgW=r=>{ const o=ovOf(r); return o.lw; };
+/* 這一張是誰（給面板顯示用） */
+const whoOf=r=>(r&&(sigNameOf(r)||r.nm||r.l2))||'這一張';
+/* 發佈到前台時，逐張微調要跟著人走 */
+let TUNE={};
 
 /* ---------- images ---------- */
 const cache=new Map();
@@ -686,15 +724,15 @@ function fontStr(px){ return `${T.sign.weight} ${px}px ${famCss()}`; }
 async function ensureFont(){
   try{ await document.fonts.load(`${T.sign.weight} 40px ${famCss()}`,'聯新國際醫院敬賀'); }catch(e){}
 }
-function calibrate(){
-  const ref='聯新國際醫院', target=T.sign.fontH*T.H;
+function calibrate(G){
+  const ref='聯新國際醫院', target=G.fontH*T.H;
   let lo=6, hi=280;
   for(let i=0;i<26;i++){
     const mid=(lo+hi)/2; ctx.font=fontStr(mid);
     const m=ctx.measureText(ref);
     if(m.actualBoundingBoxAscent+m.actualBoundingBoxDescent<target) lo=mid; else hi=mid;
   }
-  FS=(lo+hi)/2; LS=FS*T.sign.track; ctx.font=fontStr(FS);
+  FS=(lo+hi)/2; LS=FS*G.track; ctx.font=fontStr(FS);
 }
 function runInk(text,ls){
   if(!text) return {w:0,pens:[],left:0,ascent:0,desc:0};
@@ -712,7 +750,7 @@ function drawRun(text,inkLeft,inkTop,ls){
 }
 
 /* ---------- render ---------- */
-let calibrated=false, token=0, fontKey='';
+let calKey='', token=0, fontKey='';
 const hits={};
 const LABEL={logo:'LOGO', l1:'第一行', l2:'第二行', sig:'簽名', l3:'結尾用語'};
 
@@ -722,19 +760,23 @@ let PS=1;                           // 目前的繪製倍率
 function fitCanvas(){
   PS = Math.min(1, (MAXPREV_OVERRIDE||MAXPREV)/Math.max(T.W,T.H));
   const w=Math.round(T.W*PS), h=Math.round(T.H*PS);
-  if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; calibrated=false; }
+  if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; calKey=''; }
   ctx.setTransform(PS,0,0,PS,0,0);  // 之後全部照 T.W/T.H 的座標畫，不用改任何計算
 }
 async function render(){
   const me=++token;
   const key=T.sign.font+T.sign.weight;
-  if(key!==fontKey){ await ensureFont(); if(me!==token) return; fontKey=key; calibrated=false; }
+  if(key!==fontKey){ await ensureFont(); if(me!==token) return; fontKey=key; calKey=''; }
   await document.fonts.ready.catch(()=>{});
   if(me!==token) return;
   fitCanvas();
-  if(!calibrated){ calibrate(); calibrated=true; }
 
   const r=row(), org=curOrg();
+  const G=signOf(r);                       // ← 這一張自己的版面
+  /* 字級與字距是逐張的，所以換張、改字級都要重新校正一次 */
+  const ck=[T.H,cv.width,G.fontH,G.track,T.sign.font,T.sign.weight].join('|');
+  if(ck!==calKey){ calibrate(G); calKey=ck; }
+
   const base=await load(T.basePlain);
   if(me!==token) return;
   ctx.clearRect(0,0,T.W,T.H);
@@ -745,13 +787,14 @@ async function render(){
     const li=await load(org.logo); if(me!==token) return;
     if(T.logoW[org.id]==null)
       T.logoW[org.id]=(T.logo.h*T.H)*li.naturalWidth/li.naturalHeight/T.W;
-    const w=T.logoW[org.id]*T.W, h=w*li.naturalHeight/li.naturalWidth,
-          x=T.logo.x*T.W, y=T.logo.y*T.H;
+    const ov=ovOf(r), lg=lgOf(r);
+    if(ov.lw==null) ov.lw=T.logoW[org.id];   // 第一次畫先沿用預設，之後這張自己存
+    const w=ov.lw*T.W, h=w*li.naturalHeight/li.naturalWidth,
+          x=lg.x*T.W, y=lg.y*T.H;
     ctx.drawImage(li,x,y,w,h); hits.logo={x,y,w,h};
   }
 
   if(r){
-    const G=T.sign;
     ctx.font=fontStr(FS); ctx.fillStyle=G.color; ctx.textBaseline='alphabetic';
     let si=null,sw=0,sh=0;
     let sg=sigOf(r);
@@ -889,17 +932,19 @@ function snapAdjust(id,r){
   return {dx,dy};
 }
 function move(id,dx,dy,whole){
-  if(id==='logo'){ T.logo.x+=dx; T.logo.y+=dy; syncSel(); return; }
-  const s=sigOfRow(row());
-  if(whole){                       // 按住 Shift＝整張賀卡所有人一起動
+  const r=row();
+  if(id==='logo'){ if(r){ const l=lgOf(r); l.x+=dx; l.y+=dy; } syncSel(); return; }
+  if(!r) return;
+  const ov=ovOf(r);
+  if(whole){                       // 按住 Shift＝這份賀卡的每一張一起動
     T.sign.cx+=dx; T.sign.y1+=dy;
-  } else if(id==='sig'){           // 拖簽名＝只調這個人的簽名
-    if(s){ s.dx=cl((s.dx||0)+dx); s.dy=cl((s.dy||0)+dy); saveSigs(); }
-    else { T.sign.oS.x+=dx; T.sign.oS.y+=dy; }
-  } else if(s){                    // 拖落款任一行＝只調這個人的整組落款
-    s.bx=cl((s.bx||0)+dx); s.by=cl((s.by||0)+dy); saveSigs();
-  } else {
-    T.sign.cx+=dx; T.sign.y1+=dy;
+    T.rows.forEach(q=>{ const o=q.ov; if(!o) return;
+      if(o.cx!==undefined) o.cx+=dx;
+      if(o.y1!==undefined) o.y1+=dy; });
+  } else if(id==='sig'){           // 拖簽名＝只調這一張的簽名
+    ov.sx=cl(sigDX(r)+dx); ov.sy=cl(sigDY(r)+dy);
+  } else {                         // 拖落款任一行＝只調這一張的整組落款
+    ov.bx=cl(blkX(r)+dx); ov.by=cl(blkY(r)+dy);
   }
   syncSel();
 }
@@ -939,44 +984,51 @@ function syncSel(){
   $('selCtl').classList.toggle('hide',!id);
   $('selHint').classList.toggle('hide',!!id);
   if(!id) return;
+  const cr=row(), g=signOf(cr);
   let x,y,z=null,zl='';
-  if(id==='logo'){ const o=curOrg(); x=T.logo.x*K; y=T.logo.y*K;
-    z=(o&&T.logoW[o.id]!=null?T.logoW[o.id]:0)*K/10; zl='LOGO 大小'; }
-  else if(id==='sig'){ x=T.sign.oS.x*K; y=T.sign.oS.y*K; z=T.sign.sigH*K; zl='簽名大小'; }
-  else { const o=T.sign[OFF[id]]; x=o.x*K; y=o.y*K; }
+  if(id==='logo'){ const o=curOrg(), l=cr?lgOf(cr):T.logo; x=l.x*K; y=l.y*K;
+    const w=cr&&lgW(cr)!=null?lgW(cr):(o&&T.logoW[o.id]!=null?T.logoW[o.id]:0);
+    z=w*K/10; zl='LOGO 大小'; }
+  else if(id==='sig'){ x=g.oS.x*K; y=g.oS.y*K; z=g.sigH*K; zl='簽名大小'; }
+  else { const o=g[OFF[id]]; x=o.x*K; y=o.y*K; }
   $('sX').value=x.toFixed(1); $('oX').textContent=x.toFixed(1);
   $('sY').value=y.toFixed(1); $('oY').textContent=y.toFixed(1);
   $('szRow').classList.toggle('hide',z===null);
   if(z!==null){ $('szLbl').textContent=zl; $('sZ').value=z.toFixed(1); $('oZ').textContent=z.toFixed(1); }
-  const ps=(id!=='logo')?sigOfRow(row()):null;
+  const ps=(id!=='logo')?cr:null;
   $('perCtl').classList.toggle('hide',!ps);
   if(ps){
     const isSig=(id==='sig');
-    $('perName').textContent=ps.name+(isSig?'的簽名':'的落款');
+    $('perName').textContent=whoOf(cr)+(isSig?'的簽名':'的落款');
     $('selHint').classList.add('hide');
     $('szPer').classList.toggle('hide',!isSig);
-    const kk=Math.round((ps.k||1)*100);
-    const dx=(isSig?(ps.dx||0):(ps.bx||0))*K, dy=(isSig?(ps.dy||0):(ps.by||0))*K;
+    const kk=Math.round(sigWeight(cr)*100);
+    const dx=(isSig?sigDX(cr):blkX(cr))*K, dy=(isSig?sigDY(cr):blkY(cr))*K;
     $('pZ').value=kk; $('oPZ').textContent=kk+'%';
     $('pX').value=dx.toFixed(1); $('oPX').textContent=dx.toFixed(1);
     $('pY').value=dy.toFixed(1); $('oPY').textContent=dy.toFixed(1);
   }
 }
 $('sX').oninput=e=>{ const v=+e.target.value; $('oX').textContent=v.toFixed(1);
-  if(S.sel==='logo') T.logo.x=v/K; else if(S.sel) T.sign[OFF[S.sel]].x=v/K; render(); };
+  const r=row(); if(!r) return;
+  if(S.sel==='logo') lgOf(r).x=v/K; else if(S.sel) signOf(r)[OFF[S.sel]].x=v/K; render(); };
 $('sY').oninput=e=>{ const v=+e.target.value; $('oY').textContent=v.toFixed(1);
-  if(S.sel==='logo') T.logo.y=v/K; else if(S.sel) T.sign[OFF[S.sel]].y=v/K; render(); };
-const perSet=(fld,val)=>{ const s=sigOfRow(row()); if(!s) return; s[fld]=val; saveSigs(); render(); };
-const perAxis=a=>(S.sel==='sig')?('d'+a):('b'+a);   // 簽名寫 dx/dy，落款寫 bx/by
+  const r=row(); if(!r) return;
+  if(S.sel==='logo') lgOf(r).y=v/K; else if(S.sel) signOf(r)[OFF[S.sel]].y=v/K; render(); };
+const perSet=(fld,val)=>{ const r=row(); if(!r) return; ovOf(r)[fld]=val; render(); };
+const perAxis=a=>(S.sel==='sig')?('s'+a):('b'+a);   // 簽名寫 sx/sy，落款寫 bx/by
 $('pZ').oninput=e=>{ $('oPZ').textContent=e.target.value+'%'; perSet('k',+e.target.value/100); };
 $('pX').oninput=e=>{ $('oPX').textContent=(+e.target.value).toFixed(1); perSet(perAxis('x'),+e.target.value/K); };
 $('pY').oninput=e=>{ $('oPY').textContent=(+e.target.value).toFixed(1); perSet(perAxis('y'),+e.target.value/K); };
-$('pReset').onclick=()=>{ const s=sigOfRow(row()); if(!s) return;
-  const d=(A.roster||[]).find(p=>p.name===s.name);
-  s.k=(d&&d.k)||1; s.dx=0; s.dy=0; s.bx=0; s.by=0; saveSigs(); syncSel(); render(); };
+$('pReset').onclick=()=>{ const r=row(); if(!r) return;
+  const s=sigOfRow(r), o=ovOf(r);
+  const d=(A.roster||[]).find(p=>s&&p.name===s.name);
+  o.k=(d&&d.k)||1; o.sx=0; o.sy=0; o.bx=0; o.by=0;
+  syncSel(); render(); };
 $('sZ').oninput=e=>{ const v=+e.target.value; $('oZ').textContent=v.toFixed(1);
-  if(S.sel==='logo'){ const o=curOrg(); if(o) T.logoW[o.id]=v*10/K; }
-  else if(S.sel==='sig') T.sign.sigH=v/K; render(); };
+  const r=row(); if(!r) return;
+  if(S.sel==='logo') ovOf(r).lw=v*10/K;
+  else if(S.sel==='sig') signOf(r).sigH=v/K; render(); };
 
 const bind=(el,out,get,set)=>{
   const i=$(el),o=$(out);
@@ -984,24 +1036,39 @@ const bind=(el,out,get,set)=>{
   const sync=()=>{ i.value=get().toFixed(1); o.textContent=get().toFixed(1); };
   sync(); return sync;
 };
-const sFont=bind('sFont','oFont',()=>T.sign.fontH*K,v=>{T.sign.fontH=v/K;calibrated=false;});
-const sTrack=bind('sTrack','oTrack',()=>T.sign.track*100,v=>{T.sign.track=v/100;calibrated=false;});
-const sLead=bind('sLead','oLead',()=>T.sign.dy2*K,v=>{const d=v/K-T.sign.dy2;T.sign.dy2=v/K;T.sign.dySig+=d;});
-const sInd=bind('sIndent','oIndent',()=>T.sign.indent*K,v=>T.sign.indent=v/K);
-const sGap=bind('sGap','oGap',()=>T.sign.gap*K,v=>T.sign.gap=v/K);
-const sName=bind('sName','oName',()=>(T.sign.nameScale||1.25)*100,v=>T.sign.nameScale=v/100);
+const sFont=bind('sFont','oFont',()=>SG().fontH*K,v=>{SG().fontH=v/K;calKey='';});
+const sTrack=bind('sTrack','oTrack',()=>SG().track*100,v=>{SG().track=v/100;calKey='';});
+const sLead=bind('sLead','oLead',()=>SG().dy2*K,
+  v=>{const g=SG(),d=v/K-g.dy2; g.dy2=v/K; g.dySig=g.dySig+d;});
+const sInd=bind('sIndent','oIndent',()=>SG().indent*K,v=>SG().indent=v/K);
+const sGap=bind('sGap','oGap',()=>SG().gap*K,v=>SG().gap=v/K);
+const sName=bind('sName','oName',()=>(SG().nameScale||1.25)*100,v=>SG().nameScale=v/100);
 const syncAll=()=>[sFont,sTrack,sLead,sInd,sGap,sName].forEach(f=>f());
 $('resetAllPer').onclick=()=>{
-  if(!confirm('會把所有人的個別微調（落款位移、簽名大小與位移）全部歸零。要繼續嗎？')) return;
+  if(!confirm('會把「每一張」的個別微調（位置、大小、LOGO、排版）全部歸零，回到這份賀卡的預設版面。要繼續嗎？')) return;
+  T.rows.forEach(r=>{ r.ov={}; });
   const def={}; (A.roster||[]).forEach(p=>def[p.name]=p.k||1);
   SIGS.forEach(s=>{ s.k=def[s.name]||1; s.dx=0; s.dy=0; s.bx=0; s.by=0; });
-  saveSigs(); syncSel(); render(); toast('已清除所有人的個別微調');
+  saveSigs(); calKey=''; syncAll(); syncSel(); render(); toast('已清除所有張的個別微調');
 };
+/* 只把「目前這一張」倒回預設，其他張完全不動 */
 $('resetTune').onclick=()=>{
-  T.logo=clone(DEF.logo); T.logoW=clone(DEF.logoW||{});
-  const keep={font:T.sign.font,weight:T.sign.weight,color:T.sign.color,thanks:T.sign.thanks};
-  T.sign=Object.assign(clone(DEF.sign),keep);
-  calibrated=false; syncAll(); syncSel(); render(); toast('已回到這張賀卡的預設版面');
+  const r=row(); if(!r){ toast('還沒有任何一張'); return; }
+  r.ov={};
+  calKey=''; syncAll(); syncSel(); render(); toast('這一張已回到預設版面');
+};
+/* 把目前這一張的版面收成「這份賀卡的預設」，之後新增的張都從這裡開始 */
+$('setDefault').onclick=()=>{
+  const r=row(); if(!r||!r.ov) return;
+  const keep={font:T.sign.font,weight:T.sign.weight,color:T.sign.color,
+              sigColor:T.sign.sigColor,sigCustom:T.sign.sigCustom,thanks:T.sign.thanks};
+  const g={};
+  Object.keys(T.sign).forEach(k=>{ g[k]=(r.ov[k]!==undefined)?clone(r.ov[k]):clone(T.sign[k]); });
+  T.sign=Object.assign(g,keep);
+  if(r.ov.logo) T.logo=Object.assign({},T.logo,r.ov.logo);
+  DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
+  calKey=''; syncAll(); syncSel(); render();
+  toast('已設為預設版面（其他張已經調過的不受影響）');
 };
 
 /* ---------- paint ---------- */
@@ -1019,6 +1086,8 @@ function paintOrgs(){
                           :`<span class="nm">${o?o.label:'不放 LOGO'}</span>`)+'<i class="tick"></i>';
     b.onclick=()=>{ if(!r) return;
       r.orgId=id; if(o) r.l1=o.line1||o.label;
+      delete ovOf(r).lw;                 // 換機構＝LOGO 比例重算
+
       $('l1').value=r.l1||'';
       if(!o&&S.sel==='logo') S.sel=null;
       paintOrgs(); paintRows(); syncSel(); render(); };
@@ -1060,6 +1129,7 @@ function paintEditor(){
   $('sigBox').innerHTML=sigOf(r)?`<img src="${sigOf(r)}">`:'<span>尚未選擇簽名檔</span>';
   $('sigSearch').value=sigNameOf(r);
   paintOrgs();
+  syncAll(); syncSel();          // 換張時，微調面板要跟著換成這一張的數值
 }
 function paintBase(){
   const has=!!T.basePlain;
@@ -1136,7 +1206,7 @@ async function useBase(file){
   T.logoW={};
   if(fresh&&!T.rows.length) T.rows=freshRows();
   DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
-  calibrated=false; paintBase(); paintRows(); paintEditor(); render();
+  calKey=''; paintBase(); paintRows(); paintEditor(); render();
   const note=z.shrunk?('（已自動縮到長邊 '+z.to+'px）'):'';
   toast((fresh?'底圖已載入 — 接著上傳機構 LOGO':'底圖已更換')+note);
 }
@@ -1298,10 +1368,17 @@ function adopt(j,msg){
     if(changed){ SIGS=sortSigs(SIGS); saveSigs(); }
   }
   T.logoW=Object.assign(T.logoW||{}, j.logoW||{});
-  T.rows=(j.rows||[]).map(r=>Object.assign({},r,{signed:true}));
+  T.rows=(j.rows||[]).map(r=>Object.assign({},r,{signed:true},{ov:clone(r.ov||{})}));
   if(!T.rows.length) T.rows=freshRows();
+  /* 把逐張微調也照「人」索引一份，前台挑到誰就套誰那張的設定 */
+  TUNE={};
+  T.rows.forEach(r=>{
+    if(!r.ov||!Object.keys(r.ov).length) return;
+    if(r.sigId) TUNE[r.sigId]=r.ov;
+    const nm=sigNameOf(r)||r.nm; if(nm) TUNE['n:'+nm]=r.ov;
+  });
   DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
-  S.cur=0; S.sel=null; calibrated=false; fontKey='';
+  S.cur=0; S.sel=null; calKey=''; fontKey='';
   $('fontSel').value=T.sign.font||'sans'; $('wtSel').value=T.sign.weight||'500'; $('col').value=T.sign.color;
   updateSigColUI();
   paintBase(); paintOrgs(); paintRows(); paintEditor(); syncAll(); syncSel(); render();
@@ -1547,8 +1624,10 @@ function applyPerson(s){
   if(!s) return;
   fPick=s.id;
   const o=ORGS.find(g=>g.id===s.orgId)||null;
+  const tuned=TUNE[s.id]||TUNE['n:'+s.name]||null;
   T.rows=[{id:'f1', orgId:o?o.id:null, signed:true,
-           l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true}];
+           l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true,
+           ov:tuned?clone(tuned):{}}];
   S.cur=0; S.sel=null;
   paintPeople(); render();
 }
@@ -1646,7 +1725,7 @@ if(MODE==='front') startFront().catch(err=>{
   $('boot').querySelector('.sp').style.display='none';
 });
 
-document.fonts.ready.then(()=>{ calibrated=false; render(); });
+document.fonts.ready.then(()=>{ calKey=''; render(); });
 </script>
 </body>
 </html>
