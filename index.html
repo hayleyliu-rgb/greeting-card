@@ -350,6 +350,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <button class="btn primary grow" id="cloudPush">發佈這張</button>
         </div>
         <button class="btn wide" id="cloudLoad">從雲端載回上次發佈的版面</button>
+        <button class="btn wide" id="cloudPeek">看前台現在拿到的是哪一版</button>
         <p class="note" id="cloudNote">留空就用內建名單。發佈後醫院端重新整理就會看到這張。</p>
       </section>
 
@@ -1478,12 +1479,17 @@ function cloudKey(){ try{ return localStorage.getItem(CKEY)||''; }catch(e){ retu
 const api=(u,q)=>u+(u.includes('?')?'&':'?')+q+'&_='+Date.now();  // 加時間戳，避免瀏覽器拿到快取的舊版
 
 /* 版面：先問版本號，沒變就用快取，變了才整包抓（整包含底圖，約 1MB） */
+let CARDVER=0;
+const stamp=v=>{ if(!v) return ''; const d=new Date(+v);
+  const p=n=>String(n).padStart(2,'0');
+  return p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); };
 async function pullCard(){
   const url=cloudUrl(); if(!url) return null;
   let cached=null; try{ cached=JSON.parse(localStorage.getItem(CARDCACHE)||'null'); }catch(e){}
   try{
     const m=await (await fetch(api(url,'action=meta'),{cache:'no-store'})).json();
     if(!m||!m.version) return cached&&cached.card||null;
+    CARDVER=m.version;
     if(cached&&cached.version===m.version) return cached.card;
     const c=await (await fetch(api(url,'action=card'),{cache:'no-store'})).json();
     if(c&&c.sign){
@@ -1503,7 +1509,7 @@ async function pushCard(){
       headers:{'Content-Type':'text/plain;charset=utf-8'},   // 用 text/plain 避開 preflight
       body:JSON.stringify({action:'publish',key,card})});
     const j=await res.json();
-    return j&&j.ok ? {ok:true,msg:'已發佈「'+(T.name||'賀卡')+'」，醫院端重新整理就會看到'}
+    return j&&j.ok ? {ok:true,msg:'已發佈「'+(T.name||'賀卡')+'」（'+stamp(j.version)+'），醫院端重新整理就會看到'}
                    : {ok:false,msg:(j&&j.error)||'發佈失敗'};
   }catch(e){
     const mb=(JSON.stringify({action:'publish',key,card}).length/1e6).toFixed(1);
@@ -1555,6 +1561,13 @@ if(MODE==='admin') try{
     if(!c){ $('cloudNote').textContent='雲端上還沒有發佈過的版面。'; return; }
     adopt(c); $('cloudNote').textContent='已載回「'+(c.name||'賀卡')+'」，底圖、位置、機構、簽名檔都回來了。';
   };
+  $('cloudPeek').onclick=async()=>{
+    $('cloudNote').textContent='查詢中…';
+    const c=await pullCard();
+    $('cloudNote').textContent = c
+      ? ('前台目前會拿到「'+(c.name||'賀卡')+'」，發佈於 '+stamp(CARDVER)+'。跟你現在編輯的不一樣的話，按「發佈這張」。')
+      : '雲端上還沒有任何已發佈的版面。';
+  };
   $('cloudPush').onclick=async()=>{
     $('cloudNote').textContent='發佈中…'; $('cloudPush').disabled=true;
     const r=await pushCard(); $('cloudNote').textContent=r.msg; $('cloudPush').disabled=false;
@@ -1593,7 +1606,8 @@ async function startFront(){
   const st=await syncRoster();
   $('headSub').textContent=T.name||'賀卡';
   const bits=[];
-  bits.push(card?('版面：'+(card.name||'雲端')) : '版面：本機暫存（目前讀不到雲端）');
+  bits.push(card?('版面：'+(card.name||'雲端')+(CARDVER?('（發佈於 '+stamp(CARDVER)+'）'):''))
+                : '版面：本機暫存（目前讀不到雲端）');
   bits.push(st.src==='雲端名單' ? '名單：Google Sheet'
           : st.src==='快取' ? '名單：上次同步的版本（目前讀不到雲端）'
           : '名單：內建');
