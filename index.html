@@ -721,8 +721,18 @@ let FS=38, LS=3.4;
 function famCss(){ const f=FONTS.find(f=>f.id===T.sign.font)||FONTS[0];
   return f.css+',"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif'; }
 function fontStr(px){ return `${T.sign.weight} ${px}px ${famCss()}`; }
-async function ensureFont(){
-  try{ await document.fonts.load(`${T.sign.weight} 40px ${famCss()}`,'聯新國際醫院敬賀'); }catch(e){}
+const _glyphSeen=new Set();
+async function ensureFont(text){
+  /* 中文 webfont 是分段下載的，沒畫過的字量測會拿到系統字的寬度 →
+     前台第一次載入時字就會跑掉。所以先把這張真正要畫的字都載進來再量。 */
+  const need=[];
+  for(const c of ('聯新國際醫院敬賀'+(text||''))){
+    const k=T.sign.font+T.sign.weight+c;
+    if(!_glyphSeen.has(k)){ _glyphSeen.add(k); need.push(c); }
+  }
+  if(!need.length) return false;
+  try{ await document.fonts.load(`${T.sign.weight} 40px ${famCss()}`, need.join('')); }catch(e){}
+  return true;
 }
 function calibrate(G){
   const ref='聯新國際醫院', target=G.fontH*T.H;
@@ -765,14 +775,17 @@ function fitCanvas(){
 }
 async function render(){
   const me=++token;
+  const r=row(), org=curOrg();
+  const G=signOf(r);                       // ← 這一張自己的版面
+  const rs=(r&&r.sigId)?SIGS.find(x=>x.id===r.sigId):null;
+  const txt=(r?(r.l1||'')+(r.l2||''):'')+(G.thanks||'')+((rs&&!rs.img)?(rs.name||''):'');
   const key=T.sign.font+T.sign.weight;
-  if(key!==fontKey){ await ensureFont(); if(me!==token) return; fontKey=key; calKey=''; }
+  const loadedNew=await ensureFont(txt);   // 這一張的字先確保載入
+  if(me!==token) return;
+  if(key!==fontKey||loadedNew){ fontKey=key; calKey=''; }
   await document.fonts.ready.catch(()=>{});
   if(me!==token) return;
   fitCanvas();
-
-  const r=row(), org=curOrg();
-  const G=signOf(r);                       // ← 這一張自己的版面
   /* 字級與字距是逐張的，所以換張、改字級都要重新校正一次 */
   const ck=[T.H,cv.width,G.fontH,G.track,T.sign.font,T.sign.weight].join('|');
   if(ck!==calKey){ calibrate(G); calKey=ck; }
