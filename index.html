@@ -316,8 +316,8 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           </div>
           <div id="perCtl" class="hide" style="margin-top:9px;padding-top:9px;border-top:0.5px solid var(--rule)">
             <p class="hd">只調 <b id="perName"></b>　<span style="color:var(--faint)">不影響其他人</span></p>
-            <p class="note" style="margin:0 0 4px">沒有簽名檔的人，這裡的「大小」調的是姓名文字。</p>
-            <div class="slider"><span>大小</span><input type="range" id="pZ" min="40" max="220" step="1"><output id="oPZ"></output></div>
+            <p class="note" style="margin:0 0 4px">選到落款＝調他整組落款；選到簽名＝調他的簽名。沒有簽名檔的人，「大小」調的是姓名文字。</p>
+            <div class="slider" id="szPer"><span>大小</span><input type="range" id="pZ" min="40" max="220" step="1"><output id="oPZ"></output></div>
             <div class="slider"><span>左右</span><input type="range" id="pX" min="-150" max="150" step="0.5"><output id="oPX"></output></div>
             <div class="slider"><span>上下</span><input type="range" id="pY" min="-150" max="150" step="0.5"><output id="oPY"></output></div>
             <button class="btn sm wide" id="pReset" style="margin-top:2px">這個人回到預設</button>
@@ -394,7 +394,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
       <i class="mk tl"></i><i class="mk tr"></i><i class="mk bl"></i><i class="mk br"></i>
       <div class="canvases"><canvas id="preview" width="1023" height="1537"></canvas><canvas id="overlay"></canvas></div>
     </div>
-    <p class="hint admin-only">直接拖曳 LOGO、每一行落款、簽名 — 靠近版面中線或其他元件時會<b>自動對齊</b>並顯示參考線（按住 Alt 暫時關閉）。<br>按住 <b>Shift 拖曳</b>可整組落款一起移動；點選後用<b>方向鍵</b>微調。</p>
+    <p class="hint admin-only">拖曳落款或簽名 <b>只會調目前這個人</b>，不影響其他人。<br>要讓<b>所有人一起動</b>請按住 <b>Shift 拖曳</b>；點選後可用<b>方向鍵</b>微調，按住 Alt 暫時關閉自動對齊。</p>
     <div class="slug"><i class="dot"></i><span class="nm" id="slugName">—</span><span class="dim" id="slugDim"></span></div>
   </main>
 </div>
@@ -491,6 +491,9 @@ const sigWeight=r=>{ const s=sigOfRow(r); return (s&&s.k)||1; };
 /* 逐人的位移，存在該人身上，不影響其他人 */
 const sigDX=r=>{ const s=sigOfRow(r); return (s&&s.dx)||0; };
 const sigDY=r=>{ const s=sigOfRow(r); return (s&&s.dy)||0; };
+/* 逐人的「整組落款」位移：調好一個人之後，別人動了也不會影響他 */
+const blkX=r=>{ const s=sigOfRow(r); return (s&&s.bx)||0; };
+const blkY=r=>{ const s=sigOfRow(r); return (s&&s.by)||0; };
 let SIGS=(()=>{
   let j=null; try{ j=JSON.parse(localStorage.getItem(SIGKEY)||'null'); }catch(e){}
   const def=defaultSigs();
@@ -727,8 +730,8 @@ async function render(){
     let w2=wide();
     const cap=(G.maxW||.86)*T.W, kf=Math.min(1, cap/(indent+w2));
     if(kf<1){ sw*=kf; sh*=kf; gap*=kf; indent*=kf; w2=wide(); }
-    const l1L=G.cx*T.W-(indent+w2)/2, l2L=l1L+indent;
-    const y1=G.y1*T.H, y2=y1+G.dy2*T.H, yS=y1+G.dySig*T.H;
+    const l1L=G.cx*T.W-(indent+w2)/2+blkX(r)*T.W, l2L=l1L+indent;
+    const y1=G.y1*T.H+blkY(r)*T.H, y2=y1+G.dy2*T.H, yS=y1+G.dySig*T.H;
     if(r.l1){ const x=l1L+G.o1.x*T.W, y=y1+G.o1.y*T.H;
       const q=drawRun(r.l1,x,y,LS); hits.l1={x,y,w:q.w,h:q.ascent+q.desc}; }
     let x=l2L;
@@ -839,15 +842,18 @@ function snapAdjust(id,r){
   return {dx,dy};
 }
 function move(id,dx,dy,whole){
-  if(id==='logo'){ T.logo.x+=dx; T.logo.y+=dy; }
-  else if(whole||!OFF[id]){ T.sign.cx+=dx; T.sign.y1+=dy; }
-  else if(id==='sig'){
-    /* 拖簽名＝只調這個人；沒對應到人才退回全域偏移 */
-    const s=sigOfRow(row());
+  if(id==='logo'){ T.logo.x+=dx; T.logo.y+=dy; syncSel(); return; }
+  const s=sigOfRow(row());
+  if(whole){                       // 按住 Shift＝整張賀卡所有人一起動
+    T.sign.cx+=dx; T.sign.y1+=dy;
+  } else if(id==='sig'){           // 拖簽名＝只調這個人的簽名
     if(s){ s.dx=(s.dx||0)+dx; s.dy=(s.dy||0)+dy; saveSigs(); }
     else { T.sign.oS.x+=dx; T.sign.oS.y+=dy; }
+  } else if(s){                    // 拖落款任一行＝只調這個人的整組落款
+    s.bx=(s.bx||0)+dx; s.by=(s.by||0)+dy; saveSigs();
+  } else {
+    T.sign.cx+=dx; T.sign.y1+=dy;
   }
-  else { const o=T.sign[OFF[id]]; o.x+=dx; o.y+=dy; }
   syncSel();
 }
 let drag=null;
@@ -892,11 +898,14 @@ function syncSel(){
   $('sY').value=y.toFixed(1); $('oY').textContent=y.toFixed(1);
   $('szRow').classList.toggle('hide',z===null);
   if(z!==null){ $('szLbl').textContent=zl; $('sZ').value=z.toFixed(1); $('oZ').textContent=z.toFixed(1); }
-  const ps=(id==='sig')?sigOfRow(row()):null;
+  const ps=(id&&id!=='logo')?sigOfRow(row()):null;
   $('perCtl').classList.toggle('hide',!ps);
   if(ps){
-    $('perName').textContent=ps.name;
-    const kk=Math.round((ps.k||1)*100), dx=(ps.dx||0)*K, dy=(ps.dy||0)*K;
+    const isSig=(id==='sig');
+    $('perName').textContent=ps.name+(isSig?'的簽名':'的落款');
+    $('szPer').classList.toggle('hide',!isSig);
+    const kk=Math.round((ps.k||1)*100);
+    const dx=(isSig?(ps.dx||0):(ps.bx||0))*K, dy=(isSig?(ps.dy||0):(ps.by||0))*K;
     $('pZ').value=kk; $('oPZ').textContent=kk+'%';
     $('pX').value=dx.toFixed(1); $('oPX').textContent=dx.toFixed(1);
     $('pY').value=dy.toFixed(1); $('oPY').textContent=dy.toFixed(1);
@@ -907,12 +916,13 @@ $('sX').oninput=e=>{ const v=+e.target.value; $('oX').textContent=v.toFixed(1);
 $('sY').oninput=e=>{ const v=+e.target.value; $('oY').textContent=v.toFixed(1);
   if(S.sel==='logo') T.logo.y=v/K; else if(S.sel) T.sign[OFF[S.sel]].y=v/K; render(); };
 const perSet=(fld,val)=>{ const s=sigOfRow(row()); if(!s) return; s[fld]=val; saveSigs(); render(); };
+const perAxis=a=>(S.sel==='sig')?('d'+a):('b'+a);   // 簽名寫 dx/dy，落款寫 bx/by
 $('pZ').oninput=e=>{ $('oPZ').textContent=e.target.value+'%'; perSet('k',+e.target.value/100); };
-$('pX').oninput=e=>{ $('oPX').textContent=(+e.target.value).toFixed(1); perSet('dx',+e.target.value/K); };
-$('pY').oninput=e=>{ $('oPY').textContent=(+e.target.value).toFixed(1); perSet('dy',+e.target.value/K); };
+$('pX').oninput=e=>{ $('oPX').textContent=(+e.target.value).toFixed(1); perSet(perAxis('x'),+e.target.value/K); };
+$('pY').oninput=e=>{ $('oPY').textContent=(+e.target.value).toFixed(1); perSet(perAxis('y'),+e.target.value/K); };
 $('pReset').onclick=()=>{ const s=sigOfRow(row()); if(!s) return;
   const d=(A.roster||[]).find(p=>p.name===s.name);
-  s.k=(d&&d.k)||1; s.dx=0; s.dy=0; saveSigs(); syncSel(); render(); };
+  s.k=(d&&d.k)||1; s.dx=0; s.dy=0; s.bx=0; s.by=0; saveSigs(); syncSel(); render(); };
 $('sZ').oninput=e=>{ const v=+e.target.value; $('oZ').textContent=v.toFixed(1);
   if(S.sel==='logo'){ const o=curOrg(); if(o) T.logoW[o.id]=v*10/K; }
   else if(S.sel==='sig') T.sign.sigH=v/K; render(); };
@@ -1221,7 +1231,7 @@ function adopt(j,msg){
       const cur=SIGS.find(x=>x.id===s.id)
             || SIGS.find(x=>x.name===s.name && (x.title||'')===(s.title||''));
       if(cur){
-        ['img','title','orgId','k','dx','dy'].forEach(f=>{
+        ['img','title','orgId','k','dx','dy','bx','by'].forEach(f=>{
           if(s[f]!==undefined && cur[f]!==s[f]){ cur[f]=s[f]; changed=true; }
         });
       } else { SIGS.push(s); changed=true; }
