@@ -716,13 +716,22 @@ let calibrated=false, token=0, fontKey='';
 const hits={};
 const LABEL={logo:'LOGO', l1:'第一行', l2:'第二行', sig:'簽名', l3:'結尾用語'};
 
+let MAXPREV_OVERRIDE=0;
+const MAXPREV=1200;                 // 預覽最長邊；底圖 4000px 時全解析度重畫會卡住
+let PS=1;                           // 目前的繪製倍率
+function fitCanvas(){
+  PS = Math.min(1, (MAXPREV_OVERRIDE||MAXPREV)/Math.max(T.W,T.H));
+  const w=Math.round(T.W*PS), h=Math.round(T.H*PS);
+  if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; calibrated=false; }
+  ctx.setTransform(PS,0,0,PS,0,0);  // 之後全部照 T.W/T.H 的座標畫，不用改任何計算
+}
 async function render(){
   const me=++token;
   const key=T.sign.font+T.sign.weight;
   if(key!==fontKey){ await ensureFont(); if(me!==token) return; fontKey=key; calibrated=false; }
   await document.fonts.ready.catch(()=>{});
   if(me!==token) return;
-  if(cv.width!==T.W||cv.height!==T.H){ cv.width=T.W; cv.height=T.H; calibrated=false; }
+  fitCanvas();
   if(!calibrated){ calibrate(); calibrated=true; }
 
   const r=row(), org=curOrg();
@@ -803,7 +812,10 @@ let snapDepth=0;
 /* ---------- overlay ---------- */
 let hover=null, overCv=false;
 function drawOverlay(){
-  ov.width=T.W; ov.height=T.H; octx.clearRect(0,0,T.W,T.H);
+  const ow=Math.round(T.W*PS), oh=Math.round(T.H*PS);
+  if(ov.width!==ow||ov.height!==oh){ ov.width=ow; ov.height=oh; }
+  octx.setTransform(PS,0,0,PS,0,0);
+  octx.clearRect(0,0,T.W,T.H);
   const k=Math.max(1,T.W/1000);
   if(drag&&guides.length){
     octx.save(); octx.setLineDash([]); octx.lineWidth=1.3*k;
@@ -891,11 +903,14 @@ function move(id,dx,dy,whole){
   }
   syncSel();
 }
+let rafId=0;
+/* 拖曳時每幀最多重畫一次，不然大底圖會被 pointermove 灌爆 */
+function rafRender(){ if(rafId) return; rafId=requestAnimationFrame(()=>{ rafId=0; render(); }); }
 let drag=null;
 ov.addEventListener('pointermove',e=>{
   if(drag){ const p=toBase(e);
     move(drag.id,(p.x-drag.p.x)/T.W,(p.y-drag.p.y)/T.H,e.shiftKey);
-    drag.p=p; drag.snap=!e.altKey; render(); return; }
+    drag.p=p; drag.snap=!e.altKey; rafRender(); return; }
   const h=pick(toBase(e));
   if(h!==hover){ hover=h; ov.style.cursor=h?'grab':'default'; drawOverlay(); }
 });
@@ -1329,11 +1344,19 @@ function updateSlug(){ $('slugName').textContent=baseName()+'.'+$('fmt').value; 
 function save(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),6000); }
 const toBlob=(t,q)=>new Promise(r=>cv.toBlob(r,t,q));
+/* 下載時先用原尺寸重畫一次，畫完再切回預覽倍率 */
 async function blobFor(fmt){
-  if(fmt==='png') return toBlob('image/png');
-  if(fmt==='jpg') return toBlob('image/jpeg',.94);
-  const b=await toBlob('image/jpeg',.94);
-  return makePDF(new Uint8Array(await b.arrayBuffer()),T.W,T.H,150);
+  const keep=MAXPREV_OVERRIDE; MAXPREV_OVERRIDE=1e9;
+  await render();
+  let out;
+  if(fmt==='png') out=await toBlob('image/png');
+  else if(fmt==='jpg') out=await toBlob('image/jpeg',.94);
+  else{
+    const b=await toBlob('image/jpeg',.94);
+    out=makePDF(new Uint8Array(await b.arrayBuffer()),T.W,T.H,150);
+  }
+  MAXPREV_OVERRIDE=keep; await render();
+  return out;
 }
 function makePDF(jpg,w,h,dpi){
   const wp=+(w*72/dpi).toFixed(2), hp=+(h*72/dpi).toFixed(2);
