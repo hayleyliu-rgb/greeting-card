@@ -1152,7 +1152,12 @@ const LS_OK=(()=>{ try{ localStorage.setItem('__p','1'); localStorage.removeItem
 const LIBKEY='cardgen.library.v1';
 const libRead=()=>{ if(!LS_OK) return {}; try{ return JSON.parse(localStorage.getItem(LIBKEY)||'{}'); }catch(e){ return {}; } };
 const libWrite=o=>{ try{ localStorage.setItem(LIBKEY,JSON.stringify(o)); return true; }
-  catch(e){ toast('瀏覽器空間不足，請改用「匯出成檔案」'); return false; } };
+  catch(e){
+    /* 空間爆掉時先丟掉雲端快取（可重抓），再試一次 */
+    try{ localStorage.removeItem(CARDCACHE); localStorage.setItem(LIBKEY,JSON.stringify(o)); return true; }catch(e2){}
+    toast('瀏覽器空間不足 — 先刪掉「已存的賀卡」裡用不到的舊卡，或直接按「發佈這張」＋「匯出成檔案」保存');
+    return false;
+  } };
 function paintLib(){
   const lib=libRead(), names=Object.keys(lib).sort(), box=$('lib');
   box.innerHTML=''; $('libCount').textContent=names.length?names.length+' 張':'';
@@ -1183,8 +1188,17 @@ function adopt(j,msg){
     if(added) saveOrgs();
   }
   if(Array.isArray(j.sigs)&&j.sigs.length){
-    let n=0; j.sigs.forEach(s=>{ if(!SIGS.some(x=>x.id===s.id||x.name===s.name)){ SIGS.push(s); n++; } });
-    if(n){ SIGS=sortSigs(SIGS); saveSigs(); }
+    /* 發佈進來的簽名檔要「覆蓋」既有的，逐人微調（k/dx/dy）才會跟著過來 */
+    let changed=false;
+    j.sigs.forEach(s=>{
+      const cur=SIGS.find(x=>x.id===s.id)||SIGS.find(x=>x.name===s.name);
+      if(cur){
+        ['img','title','orgId','k','dx','dy'].forEach(f=>{
+          if(s[f]!==undefined && cur[f]!==s[f]){ cur[f]=s[f]; changed=true; }
+        });
+      } else { SIGS.push(s); changed=true; }
+    });
+    if(changed){ SIGS=sortSigs(SIGS); saveSigs(); }
   }
   T.logoW=Object.assign(T.logoW||{}, j.logoW||{});
   T.rows=(j.rows||[]).map(r=>Object.assign({},r,{signed:true}));
@@ -1202,12 +1216,14 @@ $('saveLib').onclick=async ()=>{
   const lib=libRead();
   if(lib[name]&&!confirm('已經有「'+name+'」了，要覆蓋嗎？')) return;
   T.name=name; $('tname').value=name; $('headSub').textContent=name;
-  lib[name]=Object.assign({},T,{orgs:ORGS,sigs:SIGS}); if(libWrite(lib)){ paintLib(); toast('已存成「'+name+'」'); }
+  lib[name]=clone(T);   // 不夾帶 ORGS/SIGS，它們各自有 key，重複存會爆空間
+  if(libWrite(lib)){ paintLib(); toast('已存成「'+name+'」'); }
 };
 $('overwrite').onclick=()=>{
   const lib=libRead();
   if(!T.name||!lib[T.name]){ toast('這個名稱還沒存過，請按「存成一張新的」'); return; }
-  lib[T.name]=Object.assign({},T,{orgs:ORGS,sigs:SIGS}); if(libWrite(lib)){ paintLib(); toast('已更新「'+T.name+'」'); }
+  lib[T.name]=clone(T);
+  if(libWrite(lib)){ paintLib(); toast('已更新「'+T.name+'」'); }
 };
 $('expFile').onclick=()=>save(new Blob([JSON.stringify(Object.assign({},T,{orgs:ORGS,sigs:SIGS}))],
   {type:'application/json'}),(T.name||'賀卡')+'.賀卡設定.json');
@@ -1328,7 +1344,7 @@ async function syncRoster(){
   const url=cloudUrl(); let list=null;
   if(url){
     try{
-      const res=await fetch(url+(url.includes('?')?'&':'?')+'action=roster',{redirect:'follow'});
+      const res=await fetch(api(url,'action=roster'),{redirect:'follow',cache:'no-store'});
       const j=await res.json();
       if(Array.isArray(j.roster)&&j.roster.length){ list=j.roster;
         try{ localStorage.setItem(RCACHE,JSON.stringify(list)); }catch(e){} }
@@ -1364,17 +1380,17 @@ async function syncRoster(){
 
 const CKEY='cardgen.cloudkey.v1', CARDCACHE='cardgen.card.cache.v1';
 function cloudKey(){ try{ return localStorage.getItem(CKEY)||''; }catch(e){ return ''; } }
-const api=(u,q)=>u+(u.includes('?')?'&':'?')+q;
+const api=(u,q)=>u+(u.includes('?')?'&':'?')+q+'&_='+Date.now();  // 加時間戳，避免瀏覽器拿到快取的舊版
 
 /* 版面：先問版本號，沒變就用快取，變了才整包抓（整包含底圖，約 1MB） */
 async function pullCard(){
   const url=cloudUrl(); if(!url) return null;
   let cached=null; try{ cached=JSON.parse(localStorage.getItem(CARDCACHE)||'null'); }catch(e){}
   try{
-    const m=await (await fetch(api(url,'action=meta'))).json();
+    const m=await (await fetch(api(url,'action=meta'),{cache:'no-store'})).json();
     if(!m||!m.version) return cached&&cached.card||null;
     if(cached&&cached.version===m.version) return cached.card;
-    const c=await (await fetch(api(url,'action=card'))).json();
+    const c=await (await fetch(api(url,'action=card'),{cache:'no-store'})).json();
     if(c&&c.sign){
       try{ localStorage.setItem(CARDCACHE,JSON.stringify({version:m.version,card:c})); }catch(e){}
       return c;
