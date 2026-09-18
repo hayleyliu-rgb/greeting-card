@@ -320,7 +320,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
             <div class="slider" id="szPer"><span>大小</span><input type="range" id="pZ" min="40" max="220" step="1"><output id="oPZ"></output></div>
             <div class="slider"><span>左右</span><input type="range" id="pX" min="-150" max="150" step="0.5"><output id="oPX"></output></div>
             <div class="slider"><span>上下</span><input type="range" id="pY" min="-150" max="150" step="0.5"><output id="oPY"></output></div>
-            <button class="btn sm wide" id="pReset" style="margin-top:2px">這個人回到預設</button>
+            <button class="btn sm wide" id="pReset" style="margin-top:2px">這個人回到預設（跑掉了就按這個）</button>
           </div>
           <p class="note" id="selHint" style="margin:6px 0 0">在預覽上點一下任一元件，或直接拖曳。</p>
         </div>
@@ -335,7 +335,8 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <div class="field"><label for="col">落款顏色</label>
             <input type="color" id="col" style="width:100%;height:36px;border:1px solid var(--rule);border-radius:8px;background:#fff"></div>
         </details>
-        <button class="btn wide" id="resetTune">回到預設位置</button>
+        <button class="btn wide" id="resetTune">整組落款回到預設位置</button>
+        <button class="btn wide" id="resetAllPer">清除所有人的個別微調</button>
       </section>
 
       <section class="sect admin-only">
@@ -486,14 +487,26 @@ function defaultSigs(){
             title:m.title||'', orgId:m.org||null, k:m.k||1};
   }));
 }
-const sigOfRow=r=>(r&&r.sigId)?SIGS.find(x=>x.id===r.sigId)||null:null;
+function sigOfRow(r){
+  if(!r) return null;
+  let s=r.sigId?SIGS.find(x=>x.id===r.sigId):null;
+  if(s) return s;
+  /* sigId 失效（例如重新同步名單後 id 換了）就用姓名接回來，避免整個人消失 */
+  if(r.nm){
+    s=SIGS.find(x=>x.name===r.nm && (x.title||'')===(r.l2||'')) || SIGS.find(x=>x.name===r.nm);
+    if(s){ r.sigId=s.id; return s; }
+  }
+  return null;
+}
 const sigWeight=r=>{ const s=sigOfRow(r); return (s&&s.k)||1; };
 /* 逐人的位移，存在該人身上，不影響其他人 */
-const sigDX=r=>{ const s=sigOfRow(r); return (s&&s.dx)||0; };
-const sigDY=r=>{ const s=sigOfRow(r); return (s&&s.dy)||0; };
+const sigDX=r=>{ const s=sigOfRow(r); return Math.max(-.3,Math.min(.3,(s&&s.dx)||0)); };
+const sigDY=r=>{ const s=sigOfRow(r); return Math.max(-.3,Math.min(.3,(s&&s.dy)||0)); };
 /* 逐人的「整組落款」位移：調好一個人之後，別人動了也不會影響他 */
-const blkX=r=>{ const s=sigOfRow(r); return (s&&s.bx)||0; };
-const blkY=r=>{ const s=sigOfRow(r); return (s&&s.by)||0; };
+const CLAMP=0.35;                       // 逐人位移上限（畫布寬/高的 ±35%）
+const cl=v=>Math.max(-CLAMP,Math.min(CLAMP,v||0));
+const blkX=r=>{ const s=sigOfRow(r); return cl(s&&s.bx); };
+const blkY=r=>{ const s=sigOfRow(r); return cl(s&&s.by); };
 let SIGS=(()=>{
   let j=null; try{ j=JSON.parse(localStorage.getItem(SIGKEY)||'null'); }catch(e){}
   const def=defaultSigs();
@@ -847,10 +860,10 @@ function move(id,dx,dy,whole){
   if(whole){                       // 按住 Shift＝整張賀卡所有人一起動
     T.sign.cx+=dx; T.sign.y1+=dy;
   } else if(id==='sig'){           // 拖簽名＝只調這個人的簽名
-    if(s){ s.dx=(s.dx||0)+dx; s.dy=(s.dy||0)+dy; saveSigs(); }
+    if(s){ s.dx=cl((s.dx||0)+dx); s.dy=cl((s.dy||0)+dy); saveSigs(); }
     else { T.sign.oS.x+=dx; T.sign.oS.y+=dy; }
   } else if(s){                    // 拖落款任一行＝只調這個人的整組落款
-    s.bx=(s.bx||0)+dx; s.by=(s.by||0)+dy; saveSigs();
+    s.bx=cl((s.bx||0)+dx); s.by=cl((s.by||0)+dy); saveSigs();
   } else {
     T.sign.cx+=dx; T.sign.y1+=dy;
   }
@@ -898,11 +911,12 @@ function syncSel(){
   $('sY').value=y.toFixed(1); $('oY').textContent=y.toFixed(1);
   $('szRow').classList.toggle('hide',z===null);
   if(z!==null){ $('szLbl').textContent=zl; $('sZ').value=z.toFixed(1); $('oZ').textContent=z.toFixed(1); }
-  const ps=(id&&id!=='logo')?sigOfRow(row()):null;
+  const ps=(id!=='logo')?sigOfRow(row()):null;
   $('perCtl').classList.toggle('hide',!ps);
   if(ps){
     const isSig=(id==='sig');
     $('perName').textContent=ps.name+(isSig?'的簽名':'的落款');
+    $('selHint').classList.add('hide');
     $('szPer').classList.toggle('hide',!isSig);
     const kk=Math.round((ps.k||1)*100);
     const dx=(isSig?(ps.dx||0):(ps.bx||0))*K, dy=(isSig?(ps.dy||0):(ps.by||0))*K;
@@ -940,6 +954,12 @@ const sInd=bind('sIndent','oIndent',()=>T.sign.indent*K,v=>T.sign.indent=v/K);
 const sGap=bind('sGap','oGap',()=>T.sign.gap*K,v=>T.sign.gap=v/K);
 const sName=bind('sName','oName',()=>(T.sign.nameScale||1.25)*100,v=>T.sign.nameScale=v/100);
 const syncAll=()=>[sFont,sTrack,sLead,sInd,sGap,sName].forEach(f=>f());
+$('resetAllPer').onclick=()=>{
+  if(!confirm('會把所有人的個別微調（落款位移、簽名大小與位移）全部歸零。要繼續嗎？')) return;
+  const def={}; (A.roster||[]).forEach(p=>def[p.name]=p.k||1);
+  SIGS.forEach(s=>{ s.k=def[s.name]||1; s.dx=0; s.dy=0; s.bx=0; s.by=0; });
+  saveSigs(); syncSel(); render(); toast('已清除所有人的個別微調');
+};
 $('resetTune').onclick=()=>{
   T.logo=clone(DEF.logo); T.logoW=clone(DEF.logoW||{});
   const keep={font:T.sign.font,weight:T.sign.weight,color:T.sign.color,thanks:T.sign.thanks};
@@ -1122,7 +1142,7 @@ function paintSigPop(){
 const openPop=()=>{ paintSigPop(); $('sigPop').classList.remove('hide'); };
 const closePop=()=>{ $('sigPop').classList.add('hide'); sigHi=-1; };
 function chooseSig(s){ const r=row(); if(!r) return;
-  r.sigId=s.id; r.sig=null; r.signed=true;
+  r.sigId=s.id; r.nm=s.name; r.sig=null; r.signed=true;
   closePop(); paintEditor(); paintRows(); render(); }
 function delSig(s){
   SIGS=SIGS.filter(x=>x.id!==s.id); saveSigs();
@@ -1177,7 +1197,7 @@ $('everyone').onclick=()=>{
   T.rows=list.map((s,i)=>{
     const o=ORGS.find(g=>g.id===s.orgId)||fb;
     return {id:'r'+Date.now()+i, orgId:o?o.id:null, signed:true,
-            l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, sig:null, on:true};
+            l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true};
   });
   S.cur=0; paintRows(); paintEditor(); render();
   const noTitle=T.rows.filter(r=>!r.l2).length;
@@ -1475,7 +1495,7 @@ function applyPerson(s){
   fPick=s.id;
   const o=ORGS.find(g=>g.id===s.orgId)||null;
   T.rows=[{id:'f1', orgId:o?o.id:null, signed:true,
-           l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, sig:null, on:true}];
+           l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true}];
   S.cur=0; S.sel=null;
   paintPeople(); render();
 }
