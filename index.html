@@ -316,6 +316,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           </div>
           <div id="perCtl" class="hide" style="margin-top:9px;padding-top:9px;border-top:0.5px solid var(--rule)">
             <p class="hd">只調 <b id="perName"></b>　<span style="color:var(--faint)">不影響其他人</span></p>
+            <p class="note" style="margin:0 0 4px">沒有簽名檔的人，這裡的「大小」調的是姓名文字。</p>
             <div class="slider"><span>大小</span><input type="range" id="pZ" min="40" max="220" step="1"><output id="oPZ"></output></div>
             <div class="slider"><span>左右</span><input type="range" id="pX" min="-150" max="150" step="0.5"><output id="oPX"></output></div>
             <div class="slider"><span>上下</span><input type="range" id="pY" min="-150" max="150" step="0.5"><output id="oPY"></output></div>
@@ -715,7 +716,7 @@ async function render(){
     const nmTxt = (!si && r.sigId) ? (sigNameOf(r)||'') : '';
     let nmFS=0, nmLS=0;
     if(nmTxt){
-      nmFS=FS*(G.nameScale||1.25); nmLS=nmFS*G.track;
+      nmFS=FS*(G.nameScale||1.25)*sigWeight(r); nmLS=nmFS*G.track;   // 逐人的「大小」對文字署名一樣有效
       ctx.font=fontStr(nmFS); sw=runInk(nmTxt,nmLS).w; ctx.font=fontStr(FS);
     }
     const wT=runInk(r.l2,LS).w, wK=runInk(G.thanks,LS).w;
