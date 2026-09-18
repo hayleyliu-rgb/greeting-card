@@ -259,7 +259,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <button class="btn grow sm" id="bNone">全部取消</button>
         </div>
         <button class="btn primary wide" id="bGo">產生勾選的並打包下載</button>
-        <p class="note">「一人一張」會依簽名檔庫的每位署名者各建一張，機構與職稱再逐張調整。</p>
+        <p class="note">「一人一張」會依名單重建成每位一張，機構與職稱直接帶入，不用逐張填。</p>
       </section>
 
       <section class="sect needs-base admin-only">
@@ -1040,8 +1040,27 @@ $('sigCol').oninput=e=>{
 $('wtSel').onchange=e=>{ T.sign.weight=e.target.value; render(); };
 
 /* ---------- files ---------- */
+/* 底圖自動壓縮：太大的圖會塞爆瀏覽器空間，也會讓「發佈」的封包過大上傳失敗。
+   長邊上限 2400、JPEG 品質 0.86 —— 社群用的解析度綽綽有餘。 */
+const MAXSIDE=2400;
+async function shrinkBase(src){
+  const im=await load(src);
+  const long=Math.max(im.naturalWidth,im.naturalHeight);
+  if(long<=MAXSIDE && src.length<1.2e6) return {src,im,shrunk:false};
+  const k=Math.min(1,MAXSIDE/long);
+  const c=document.createElement('canvas');
+  c.width=Math.round(im.naturalWidth*k); c.height=Math.round(im.naturalHeight*k);
+  const g=c.getContext('2d'); g.imageSmoothingQuality='high';
+  g.drawImage(im,0,0,c.width,c.height);
+  const out=c.toDataURL('image/jpeg',0.86);
+  if(out.length>=src.length) return {src,im,shrunk:false};
+  const im2=await load(out);
+  return {src:out, im:im2, shrunk:true, from:long, to:Math.max(c.width,c.height)};
+}
 async function useBase(file){
-  const src=await readFile(file), im=await load(src);
+  const raw=await readFile(file);
+  const z=await shrinkBase(raw);
+  const src=z.src, im=z.im;
   const fresh=!T.basePlain;
   T.basePlain=src; T.W=im.naturalWidth; T.H=im.naturalHeight;
   if(!T.name) T.name=file.name.replace(/\.[^.]+$/,'');
@@ -1049,7 +1068,8 @@ async function useBase(file){
   if(fresh&&!T.rows.length) T.rows=freshRows();
   DEF=clone({logo:T.logo,logoW:T.logoW,sign:T.sign});
   calibrated=false; paintBase(); paintRows(); paintEditor(); render();
-  toast(fresh?'底圖已載入 — 接著上傳機構 LOGO':'底圖已更換');
+  const note=z.shrunk?('（已自動縮到長邊 '+z.to+'px）'):'';
+  toast((fresh?'底圖已載入 — 接著上傳機構 LOGO':'底圖已更換')+note);
 }
 $('startPick').onclick=$('upBase').onclick=()=>$('fBase').click();
 $('fBase').onchange=async e=>{ const f=e.target.files[0]; if(f) await useBase(f); e.target.value=''; };
@@ -1138,13 +1158,19 @@ $('addRow').onclick=()=>{
   S.cur=T.rows.length-1; paintRows(); paintEditor(); render();
 };
 $('everyone').onclick=()=>{
-  if(!SIGS.length){ toast('簽名檔庫是空的，先用「＋ 新增」匯入'); return; }
-  const p=row(), oid=p?p.orgId:(ORGS[0]?ORGS[0].id:null);
-  const o=ORGS.find(g=>g.id===oid);
-  SIGS.forEach((s,i)=>T.rows.push({id:'r'+Date.now()+i, orgId:oid, signed:true,
-    l1:o?(o.line1||o.label):'', l2:'', sigId:s.id, sig:null, on:true}));
-  S.cur=T.rows.length-1; paintRows(); paintEditor(); render();
-  toast('已加入 '+SIGS.length+' 張，機構與職稱再逐張調整');
+  const list=people();
+  if(!list.length){ toast('名單是空的，先按「同步名單」或用「＋ 新增」匯入'); return; }
+  if(T.rows.length>1 && !confirm('會用名單重建成一人一張，目前的 '+T.rows.length+' 列會被取代。要繼續嗎？')) return;
+  const fb=ORGS[0]||null;
+  /* 機構與職稱各自吃「那個人」的資料，不要沿用目前這列 */
+  T.rows=list.map((s,i)=>{
+    const o=ORGS.find(g=>g.id===s.orgId)||fb;
+    return {id:'r'+Date.now()+i, orgId:o?o.id:null, signed:true,
+            l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, sig:null, on:true};
+  });
+  S.cur=0; paintRows(); paintEditor(); render();
+  const noTitle=T.rows.filter(r=>!r.l2).length;
+  toast('已建立 '+T.rows.length+' 張'+(noTitle?('，其中 '+noTitle+' 位還沒有職稱'):''));
 };
 
 /* ---------- library ---------- */
@@ -1410,7 +1436,10 @@ async function pushCard(){
     const j=await res.json();
     return j&&j.ok ? {ok:true,msg:'已發佈「'+(T.name||'賀卡')+'」，醫院端重新整理就會看到'}
                    : {ok:false,msg:(j&&j.error)||'發佈失敗'};
-  }catch(e){ return {ok:false,msg:'連不上，請確認網址與部署權限'}; }
+  }catch(e){
+    const mb=(JSON.stringify({action:'publish',key,card}).length/1e6).toFixed(1);
+    return {ok:false,msg:'連不上（這次要送 '+mb+' MB）。若底圖很大請重新上傳讓它自動縮小；否則確認網址與部署權限選「任何人」'};
+  }
 }
 
 const people=()=>SIGS.filter(s=>s.active!==false);
