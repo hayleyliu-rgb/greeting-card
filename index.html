@@ -305,6 +305,13 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
             <div class="slider"><span>上下</span><input type="range" id="sY" min="-200" max="200" step="0.5" value="0"><output id="oY"></output></div>
             <div class="slider" id="szRow"><span id="szLbl">大小</span><input type="range" id="sZ" min="5" max="200" step="0.5" value="0"><output id="oZ"></output></div>
           </div>
+          <div id="perCtl" class="hide" style="margin-top:9px;padding-top:9px;border-top:0.5px solid var(--rule)">
+            <p class="hd">只調 <b id="perName"></b>　<span style="color:var(--faint)">不影響其他人</span></p>
+            <div class="slider"><span>大小</span><input type="range" id="pZ" min="40" max="220" step="1"><output id="oPZ"></output></div>
+            <div class="slider"><span>左右</span><input type="range" id="pX" min="-150" max="150" step="0.5"><output id="oPX"></output></div>
+            <div class="slider"><span>上下</span><input type="range" id="pY" min="-150" max="150" step="0.5"><output id="oPY"></output></div>
+            <button class="btn sm wide" id="pReset" style="margin-top:2px">這個人回到預設</button>
+          </div>
           <p class="note" id="selHint" style="margin:6px 0 0">在預覽上點一下任一元件，或直接拖曳。</p>
         </div>
         <details style="margin-top:10px">
@@ -468,7 +475,11 @@ function defaultSigs(){
             title:m.title||'', orgId:m.org||null, k:m.k||1};
   }));
 }
-const sigWeight=r=>{ const s=r&&r.sigId?SIGS.find(x=>x.id===r.sigId):null; return (s&&s.k)||1; };
+const sigOfRow=r=>(r&&r.sigId)?SIGS.find(x=>x.id===r.sigId)||null:null;
+const sigWeight=r=>{ const s=sigOfRow(r); return (s&&s.k)||1; };
+/* 逐人的位移，存在該人身上，不影響其他人 */
+const sigDX=r=>{ const s=sigOfRow(r); return (s&&s.dx)||0; };
+const sigDY=r=>{ const s=sigOfRow(r); return (s&&s.dy)||0; };
 let SIGS=(()=>{
   let j=null; try{ j=JSON.parse(localStorage.getItem(SIGKEY)||'null'); }catch(e){}
   const def=defaultSigs();
@@ -721,14 +732,14 @@ async function render(){
     let x=l2L;
     if(r.l2){ const px=x+G.o2.x*T.W, py=y2+G.o2.y*T.H;
       const q=drawRun(r.l2,px,py,LS); hits.l2={x:px,y:py,w:q.w,h:q.ascent+q.desc}; x+=q.w+gap; }
-    if(si){ const sx=x+G.oS.x*T.W, sy=yS-sh+G.oS.y*T.H;
+    if(si){ const sx=x+(G.oS.x+sigDX(r))*T.W, sy=yS-sh+(G.oS.y+sigDY(r))*T.H;
       ctx.drawImage(si,sx,sy,sw,sh); hits.sig={x:sx,y:sy,w:sw,h:sh}; x+=sw+gap; }
     else if(nmTxt){
       const ref=runInk(r.l2||G.thanks,LS), refH=ref.ascent+ref.desc;   // 第二行的文字高度
       const f2=nmFS*kf, l2s=nmLS*kf;
       ctx.font=fontStr(f2);
       const q=runInk(nmTxt,l2s), h2=q.ascent+q.desc;
-      const sx=x+G.oS.x*T.W, sy=y2+refH-h2+G.oS.y*T.H;                 // 底部與第二行對齊
+      const sx=x+(G.oS.x+sigDX(r))*T.W, sy=y2+refH-h2+(G.oS.y+sigDY(r))*T.H;   // 底部與第二行對齊
       drawRun(nmTxt,sx,sy,l2s);
       hits.sig={x:sx,y:sy,w:q.w,h:h2};
       ctx.font=fontStr(FS);
@@ -828,6 +839,12 @@ function snapAdjust(id,r){
 function move(id,dx,dy,whole){
   if(id==='logo'){ T.logo.x+=dx; T.logo.y+=dy; }
   else if(whole||!OFF[id]){ T.sign.cx+=dx; T.sign.y1+=dy; }
+  else if(id==='sig'){
+    /* 拖簽名＝只調這個人；沒對應到人才退回全域偏移 */
+    const s=sigOfRow(row());
+    if(s){ s.dx=(s.dx||0)+dx; s.dy=(s.dy||0)+dy; saveSigs(); }
+    else { T.sign.oS.x+=dx; T.sign.oS.y+=dy; }
+  }
   else { const o=T.sign[OFF[id]]; o.x+=dx; o.y+=dy; }
   syncSel();
 }
@@ -873,11 +890,27 @@ function syncSel(){
   $('sY').value=y.toFixed(1); $('oY').textContent=y.toFixed(1);
   $('szRow').classList.toggle('hide',z===null);
   if(z!==null){ $('szLbl').textContent=zl; $('sZ').value=z.toFixed(1); $('oZ').textContent=z.toFixed(1); }
+  const ps=(id==='sig')?sigOfRow(row()):null;
+  $('perCtl').classList.toggle('hide',!ps);
+  if(ps){
+    $('perName').textContent=ps.name;
+    const kk=Math.round((ps.k||1)*100), dx=(ps.dx||0)*K, dy=(ps.dy||0)*K;
+    $('pZ').value=kk; $('oPZ').textContent=kk+'%';
+    $('pX').value=dx.toFixed(1); $('oPX').textContent=dx.toFixed(1);
+    $('pY').value=dy.toFixed(1); $('oPY').textContent=dy.toFixed(1);
+  }
 }
 $('sX').oninput=e=>{ const v=+e.target.value; $('oX').textContent=v.toFixed(1);
   if(S.sel==='logo') T.logo.x=v/K; else if(S.sel) T.sign[OFF[S.sel]].x=v/K; render(); };
 $('sY').oninput=e=>{ const v=+e.target.value; $('oY').textContent=v.toFixed(1);
   if(S.sel==='logo') T.logo.y=v/K; else if(S.sel) T.sign[OFF[S.sel]].y=v/K; render(); };
+const perSet=(fld,val)=>{ const s=sigOfRow(row()); if(!s) return; s[fld]=val; saveSigs(); render(); };
+$('pZ').oninput=e=>{ $('oPZ').textContent=e.target.value+'%'; perSet('k',+e.target.value/100); };
+$('pX').oninput=e=>{ $('oPX').textContent=(+e.target.value).toFixed(1); perSet('dx',+e.target.value/K); };
+$('pY').oninput=e=>{ $('oPY').textContent=(+e.target.value).toFixed(1); perSet('dy',+e.target.value/K); };
+$('pReset').onclick=()=>{ const s=sigOfRow(row()); if(!s) return;
+  const d=(A.roster||[]).find(p=>p.name===s.name);
+  s.k=(d&&d.k)||1; s.dx=0; s.dy=0; saveSigs(); syncSel(); render(); };
 $('sZ').oninput=e=>{ const v=+e.target.value; $('oZ').textContent=v.toFixed(1);
   if(S.sel==='logo'){ const o=curOrg(); if(o) T.logoW[o.id]=v*10/K; }
   else if(S.sel==='sig') T.sign.sigH=v/K; render(); };
