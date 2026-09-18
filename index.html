@@ -519,6 +519,27 @@ let SIGS=(()=>{
   return sortSigs(j);
 })();
 function saveSigs(){ try{ localStorage.setItem(SIGKEY,JSON.stringify(SIGS)); }catch(e){} }
+
+/* 自我修復：
+   (1) 簽名圖不見了就從內建素材補回來（曾因同步時建出 img:null 的重複條目而掉圖）
+   (2) 同名同職稱的重複條目合併成一筆，有圖的優先留下 */
+function healSigs(){
+  let fixed=0;
+  SIGS.forEach(s=>{ if(!s.img && (A.sigs||{})[s.name]){ s.img=A.sigs[s.name]; fixed++; } });
+  const seen=new Map(), out=[];
+  SIGS.forEach(s=>{
+    const key=s.name+'|'+(s.title||'');
+    const prev=seen.get(key);
+    if(!prev){ seen.set(key,s); out.push(s); return; }
+    if(!prev.img && s.img) prev.img=s.img;
+    ['k','dx','dy','bx','by','orgId'].forEach(f=>{ if(prev[f]===undefined&&s[f]!==undefined) prev[f]=s[f]; });
+    fixed++;
+  });
+  if(out.length!==SIGS.length) SIGS=out;
+  if(fixed){ SIGS=sortSigs(SIGS); saveSigs(); }
+  return fixed;
+}
+healSigs();
 const sigOf=r=>{ if(!r) return null;
   if(r.sigId){ const s=SIGS.find(s=>s.id===r.sigId); if(s) return s.img; }
   return r.sig||null; };
@@ -1252,7 +1273,9 @@ function adopt(j,msg){
             || SIGS.find(x=>x.name===s.name && (x.title||'')===(s.title||''));
       if(cur){
         ['img','title','orgId','k','dx','dy','bx','by'].forEach(f=>{
-          if(s[f]!==undefined && cur[f]!==s[f]){ cur[f]=s[f]; changed=true; }
+          if(s[f]===undefined) return;
+          if(f==='img' && !s[f] && cur[f]) return;      // 不讓空圖蓋掉現有簽名
+          if(cur[f]!==s[f]){ cur[f]=s[f]; changed=true; }
         });
       } else { SIGS.push(s); changed=true; }
     });
@@ -1446,7 +1469,8 @@ async function syncRoster(){
   SIGS = anyOrd
     ? SIGS.slice().sort((a,b)=>(a.ord==null?9999:a.ord)-(b.ord==null?9999:b.ord))
     : sortSigs(SIGS);
-  return {ok:true, src:'雲端名單', miss, ordered:anyOrd};
+  healSigs();
+  return {ok:true, src:'雲端名單', miss:SIGS.filter(x=>!x.img&&x.active!==false).length, ordered:anyOrd};
 }
 
 const CKEY='cardgen.cloudkey.v1', CARDCACHE='cardgen.card.cache.v1';
