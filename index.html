@@ -474,6 +474,7 @@ function sigRank(n){
   const s=SUR[(n||'')[0]], i=SIG_ORDER.indexOf(n);
   return [s==null?99999:s, i<0?9999:i, n||''];
 }
+const _emptyTitle=t=>{ const x=(t||'').trim(); return !x || /^[（(]?\s*空\s*[)）]?$/.test(x) || /^[-－—\.．]+$/.test(x); };
 const _isBlankSig=s=>!s.img && _emptyTitle(s.title);
 function sortSigs(list){
   return list.slice().sort((a,b)=>{
@@ -554,7 +555,6 @@ function healSigs(){
   return fixed;
 }
 healSigs();
-const _emptyTitle=t=>{ const x=(t||'').trim(); return !x || /^[（(]?\s*空\s*[)）]?$/.test(x) || /^[-－—\.．]+$/.test(x); };
 const sigOf=r=>{ if(!r) return null;
   if(r.sigId){
     const s=SIGS.find(s=>s.id===r.sigId);
