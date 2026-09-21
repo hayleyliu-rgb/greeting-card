@@ -277,6 +277,7 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
           <div class="field" style="margin-top:0"><label for="l1">第一行・單位</label><input type="text" id="l1" autocomplete="off"></div>
           <div class="field"><label for="l2">第二行・分院＋職稱</label><input type="text" id="l2" placeholder="例：助理副院長／桃新分院 院長" autocomplete="off"></div>
           <div class="field"><label for="l3">結尾用語（整張賀卡共用）</label><input type="text" id="l3" autocomplete="off"></div>
+          <div class="field"><label for="fname">下載檔名（留空＝自動用姓名）</label><input type="text" id="fname" placeholder="例：空白版-A、運休事業群" autocomplete="off"></div>
           <div class="field">
             <label for="sigSearch">簽名檔</label>
             <div class="combo">
@@ -547,10 +548,18 @@ function healSigs(){
 }
 healSigs();
 const sigOf=r=>{ if(!r) return null;
-  if(r.sigId){ const s=SIGS.find(s=>s.id===r.sigId); if(s) return s.img; }
+  if(r.sigId){
+    const s=SIGS.find(s=>s.id===r.sigId);
+    /* 安全鎖：只有當簽名檔的姓名和這一列的姓名一致時才用它的圖，
+       避免連結錯亂時把別人的簽名畫上去（例：徐偉倫借到張濱璿的簽名）。 */
+    if(s && (!r.nm || s.name===r.nm)) return s.img;
+    if(r.nm){ const byName=SIGS.find(x=>x.name===r.nm); if(byName) return byName.img; }
+    return null;
+  }
   return r.sig||null; };
-const sigNameOf=r=>{ if(!r||!r.sigId) return '';
-  const s=SIGS.find(s=>s.id===r.sigId); return s?s.name:''; };
+const sigNameOf=r=>{ if(!r) return '';
+  if(r.nm) return r.nm;
+  const s=r.sigId?SIGS.find(s=>s.id===r.sigId):null; return s?s.name:''; };
 const nameFromFile=fn=>fn.replace(/\.[^.]+$/,'').replace(/[_-](B|\d+)$/i,'').split(/[-_]/).pop().trim();
 
 /* geometry stored as ratios of the base image, so a card survives being
@@ -816,8 +825,9 @@ async function render(){
       si=await load(sg); if(me!==token) return;
       sh=G.sigH*T.H*sigWeight(r); sw=sh*si.naturalWidth/si.naturalHeight;
     }
-    /* 沒有簽名檔的人：把姓名當文字排在簽名的位置 */
-    const nmTxt = (!si && r.sigId) ? (sigNameOf(r)||'') : '';
+    /* 空白卡＝無簽名圖且無職稱：只顯示單位那一行，姓名位置留白給手寫 */
+    const blankCard = !si && r.sigId && !(r.l2 && r.l2.trim());
+    const nmTxt = (!si && r.sigId && !blankCard) ? (sigNameOf(r)||'') : '';
     let nmFS=0, nmLS=0;
     if(nmTxt){
       nmFS=FS*(G.nameScale||1.25)*sigWeight(r); nmLS=nmFS*G.track;   // 逐人的「大小」對文字署名一樣有效
@@ -1139,6 +1149,7 @@ function paintRows(){
 function paintEditor(){
   const r=row(); if(!r) return;
   $('l1').value=r.l1||''; $('l2').value=r.l2||''; $('l3').value=T.sign.thanks||'';
+  $('fname').value=r.fname||'';
   $('sigBox').innerHTML=sigOf(r)?`<img src="${sigOf(r)}">`:'<span>尚未選擇簽名檔</span>';
   $('sigSearch').value=sigNameOf(r);
   paintOrgs();
@@ -1169,6 +1180,7 @@ function ask(title,desc,value){
 $('l1').oninput=e=>{ const r=row(); if(r){ r.l1=e.target.value; render(); } };
 $('l2').oninput=e=>{ const r=row(); if(r){ r.l2=e.target.value; paintRows(); render(); } };
 $('l3').oninput=e=>{ T.sign.thanks=e.target.value; render(); };
+$('fname').oninput=e=>{ const r=row(); if(r){ r.fname=e.target.value; updateSlug(); } };
 $('col').oninput=e=>{ T.sign.color=e.target.value; render(); };
 $('tname').oninput=e=>{ T.name=e.target.value; $('headSub').textContent=T.name||'未命名'; updateSlug(); };
 FONTS.forEach(f=>{ const o=document.createElement('option'); o.value=f.id; o.textContent=f.label; $('fontSel').appendChild(o); });
@@ -1427,6 +1439,8 @@ $('fTpl').onchange=e=>{
 /* ---------- output ---------- */
 function baseName(){
   const r=row(), o=curOrg();
+  if(r&&r.fname&&r.fname.trim())
+    return (T.name||'賀卡')+'_'+r.fname.trim().replace(/[\/\\:*?"<>|]/g,'-').replace(/\s+/g,'');
   const who=(r&&(sigNameOf(r)||r.l2))||'署名';
   return `${T.name||'賀卡'}_${o?o.label:'無LOGO'}_${who}`.replace(/[\/\\:*?"<>|]/g,'-').replace(/\s+/g,'');
 }
@@ -1570,7 +1584,12 @@ async function syncRoster(){
     }
     s.title=(p['職稱']||p.title||s.title||'').trim();
     const og=(p['機構']||p.org||'').trim();
-    if(og) s.orgId=byName[og]||s.orgId;
+    const isBlank=!ti0;                                    // 沒有職稱＝空白卡
+    if(og){
+      if(isBlank){ s.orgId=byName['聯新國際醫療']||null; s.unit=og; }  // 空白卡固定用集團 LOGO，落款用單位文字
+      else if(byName[og]){ s.orgId=byName[og]; s.unit=''; }
+      else { s.orgId=null; s.unit=og; }
+    }
     const on=(p['啟用']||p.active);
     s.active = on===undefined ? true : !/^(n|no|false|0|否)$/i.test(String(on).trim());
   });
@@ -1639,7 +1658,7 @@ function applyPerson(s){
   const o=ORGS.find(g=>g.id===s.orgId)||null;
   const tuned=TUNE[s.id]||TUNE['n:'+s.name]||null;
   T.rows=[{id:'f1', orgId:o?o.id:null, signed:true,
-           l1:o?(o.line1||o.label):'', l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true,
+           l1:(s.unit&&s.unit.trim())?s.unit:(o?(o.line1||o.label):''), l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true,
            ov:tuned?clone(tuned):{}}];
   S.cur=0; S.sel=null;
   paintPeople(); render();
