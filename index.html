@@ -474,9 +474,16 @@ function sigRank(n){
   const s=SUR[(n||'')[0]], i=SIG_ORDER.indexOf(n);
   return [s==null?99999:s, i<0?9999:i, n||''];
 }
+const _isBlankSig=s=>!s.img && _emptyTitle(s.title);
 function sortSigs(list){
   return list.slice().sort((a,b)=>{
-    const x=sigRank(a.name), y=sigRank(b.name);
+    const ba=_isBlankSig(a)?1:0, bb=_isBlankSig(b)?1:0;
+    if(ba!==bb) return ba-bb;                       // 空白卡整組排最後
+    if(ba){                                         // 空白卡組內：排序欄 > Sheet 順序
+      const oa=(a.ord??a.seq??9999), ob=(b.ord??b.seq??9999);
+      return oa-ob || ((a.name||'')<(b.name||'')?-1:1);
+    }
+    const x=sigRank(a.name), y=sigRank(b.name);     // 一般人：姓氏筆畫
     return x[0]-y[0] || x[1]-y[1] || (x[2]<y[2]?-1:x[2]>y[2]?1:0)
         || ((a.title||'')<(b.title||'')?-1:(a.title||'')>(b.title||'')?1:0);
   });
@@ -547,6 +554,7 @@ function healSigs(){
   return fixed;
 }
 healSigs();
+const _emptyTitle=t=>{ const x=(t||'').trim(); return !x || /^[（(]?\s*空\s*[)）]?$/.test(x) || /^[-－—\.．]+$/.test(x); };
 const sigOf=r=>{ if(!r) return null;
   if(r.sigId){
     const s=SIGS.find(s=>s.id===r.sigId);
@@ -826,7 +834,7 @@ async function render(){
       sh=G.sigH*T.H*sigWeight(r); sw=sh*si.naturalWidth/si.naturalHeight;
     }
     /* 空白卡＝無簽名圖且無職稱：只顯示單位那一行，姓名位置留白給手寫 */
-    const blankCard = !si && r.sigId && !(r.l2 && r.l2.trim());
+    const blankCard = !si && r.sigId && _emptyTitle(r.l2);
     const nmTxt = (!si && r.sigId && !blankCard) ? (sigNameOf(r)||'') : '';
     let nmFS=0, nmLS=0;
     if(nmTxt){
@@ -1124,6 +1132,7 @@ function rowTitle(r){
   return o?o.label:'不放 LOGO';
 }
 function rowSub(r){
+  if(_emptyTitle(r.l2)&&!sigOf(r)) return (r.l1||'空白卡');
   return [sigNameOf(r)||'（未選簽名檔）', r.l2||'（未填職稱）'].join(' ・ ');
 }
 function paintRows(){
@@ -1567,9 +1576,10 @@ async function syncRoster(){
   const byName={}; ORGS.forEach(o=>byName[o.label]=o.id);
   let miss=0;
   SIGS.forEach(s=>{ s.active=false; });
-  list.forEach(p=>{
+  list.forEach((p,_idx)=>{
     const nm0=(p['姓名']||p.name||'').trim(); if(!nm0) return;
-    const ti0=(p['職稱']||p.title||'').trim();
+    let ti0=(p['職稱']||p.title||'').trim();
+    if(_emptyTitle(ti0)) ti0='';
     /* 同一個人可能有多個職稱（例如總執行長／創辦人），各自算一筆。
        先找名字＋職稱都吻合的；再找同名但職稱還空著的；都沒有才新建，
        新建時沿用同名者的簽名圖與粗細。 */
@@ -1582,7 +1592,8 @@ async function syncRoster(){
          dx:kin?kin.dx:0, dy:kin?kin.dy:0};
       SIGS.push(s); if(!s.img) miss++;
     }
-    s.title=(p['職稱']||p.title||s.title||'').trim();
+    s.title=ti0||(_emptyTitle(s.title)?'':s.title)||'';
+    s.seq=_idx;                                            // 記住在 Sheet 裡的順序
     const og=(p['機構']||p.org||'').trim();
     const isBlank=!ti0;                                    // 沒有職稱＝空白卡
     if(og){
@@ -1675,7 +1686,9 @@ function paintPeople(){
     d.className='pr'; d.setAttribute('aria-current',String(s.id===fPick));
     d.innerHTML='<i class="ic">'+(s.id===fPick?'●':'○')+'</i>'+
       '<div style="flex:1;min-width:0"><div class="nm2">'+s.name+'</div>'+
-      '<div class="sub">'+[s.title||'（未填職稱）',o?o.label:'不放 LOGO'].join(' ・ ')+'</div></div>';
+      '<div class="sub">'+(_emptyTitle(s.title)
+          ? (s.unit||(o?o.label:'空白卡'))
+          : [s.title,o?o.label:'不放 LOGO'].join(' ・ '))+'</div></div>';
     d.onclick=()=>applyPerson(s);
     box.appendChild(d);
   });
