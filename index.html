@@ -625,7 +625,7 @@ function signOf(r){
 const SG=()=>signOf(row());
 /* LOGO 的位置與大小也是逐張的 */
 const lgOf=r=>{ const o=ovOf(r); if(!o.logo) o.logo=Object.assign({},T.logo); return o.logo; };
-const lgW=r=>{ const o=ovOf(r); return o.lw; };
+const lgW=r=>{ const o=ovOf(r); return o.lwManual?o.lw:undefined; };
 /* 這一張是誰（給面板顯示用） */
 const whoOf=r=>(r&&(sigNameOf(r)||r.nm||r.l2))||'這一張';
 /* 發佈到前台時，逐張微調要跟著人走 */
