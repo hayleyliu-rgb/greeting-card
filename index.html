@@ -60,6 +60,11 @@ button,input,select{font:inherit;color:inherit}
 .org[aria-pressed="true"] .tick{border-color:var(--brand);background:radial-gradient(circle at 50% 50%,var(--brand) 0 4.2px,transparent 4.3px)}
 .org.none{background:#fff;border-style:dashed}
 .org.none .nm{color:var(--faint)}
+.orgsizes{display:flex;flex-direction:column;gap:6px}
+.osz{display:flex;align-items:center;gap:9px;border:1px solid var(--rule);border-radius:9px;padding:7px 11px;background:var(--paper)}
+.osz .nm{flex:1;font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.osz input[type=number]{width:58px;padding:5px 7px;border:1px solid var(--rule);border-radius:6px;font-size:12.5px;font-family:"IBM Plex Mono",monospace;text-align:right;background:#fff}
+.osz span.u{font-size:11px;color:var(--faint)}
 
 .seg{display:grid;grid-template-columns:1fr 1fr;background:#EFF2F5;border-radius:9px;padding:3px;gap:3px}
 .seg button{border:0;background:transparent;border-radius:7px;padding:7px 0;font-size:13.5px;font-weight:500;cursor:pointer;color:var(--muted)}
@@ -254,6 +259,8 @@ body.empty .proof,body.empty .hint,body.empty .slug{display:none}
         <div class="orgs" id="orgs"></div>
         <button class="btn wide" id="addOrg">＋ 上傳 LOGO</button>
         <p class="note">機構 LOGO 是<b>所有賀卡共用</b>的，換底圖、開新的一年都不會消失。選機構會同時換掉左上角的識別，並帶入落款第一行；選「不放 LOGO」則左上角留白，落款照舊。</p>
+        <div class="orgsizes" id="orgSizes" style="margin-top:12px"></div>
+        <p class="note">設定每個機構的 LOGO 大小，之後<b>所有用這個機構的卡片都會自動套用</b>，不用一張一張調。只有在「微調」裡手動改過某一張的 LOGO 大小，那一張才會用自己的數字。</p>
       </section>
 
       <section class="sect needs-base admin-only">
@@ -817,9 +824,11 @@ async function render(){
     const li=await load(org.logo); if(me!==token) return;
     if(T.logoW[org.id]==null)
       T.logoW[org.id]=(T.logo.h*T.H)*li.naturalWidth/li.naturalHeight/T.W;
-    const ov=ovOf(r), lg=lgOf(r);
-    if(ov.lw==null) ov.lw=T.logoW[org.id];   // 第一次畫先沿用預設，之後這張自己存
-    const w=ov.lw*T.W, h=w*li.naturalHeight/li.naturalWidth,
+    const lg=lgOf(r);
+    /* LOGO 大小預設跟著機構走，即時生效；只有在「這一張」手動調過大小
+       （ov.lw 有值）時，才用這張自己的數字，不受機構設定影響。 */
+    const effW=lgW(r)!=null?lgW(r):T.logoW[org.id];
+    const w=effW*T.W, h=w*li.naturalHeight/li.naturalWidth,
           x=lg.x*T.W, y=lg.y*T.H;
     ctx.drawImage(li,x,y,w,h); hits.logo={x,y,w,h};
   }
@@ -1058,7 +1067,7 @@ $('pReset').onclick=()=>{ const r=row(); if(!r) return;
   syncSel(); render(); };
 $('sZ').oninput=e=>{ const v=+e.target.value; $('oZ').textContent=v.toFixed(1);
   const r=row(); if(!r) return;
-  if(S.sel==='logo') ovOf(r).lw=v*10/K;
+  if(S.sel==='logo'){ const o=ovOf(r); o.lw=v*10/K; o.lwManual=true; }
   else if(S.sel==='sig') signOf(r).sigH=v/K; render(); };
 
 const bind=(el,out,get,set)=>{
@@ -1126,6 +1135,40 @@ function paintOrgs(){
   };
   ORGS.forEach(add); add(null);
   $('orgCount').textContent=ORGS.length?ORGS.length+' 個':'';
+  paintOrgSizes();
+}
+/* ---- 機構固定 LOGO 大小：設定一次，所有用這個機構、且沒有手動調過
+   這一張大小的卡片，都會即時套用。單位跟「微調」面板的 LOGO 大小一致
+   （畫布寬度的百分比）。 ---- */
+function orgSizeVal(o){
+  if(T.logoW[o.id]!=null) return T.logoW[o.id]*K/10;
+  load(o.logo).then(li=>{
+    if(T.logoW[o.id]==null && li)
+      T.logoW[o.id]=(T.logo.h*T.H)*li.naturalHeight ? (T.logo.h*T.H)*li.naturalWidth/li.naturalHeight/T.W : 0;
+    paintOrgSizes();
+  }).catch(()=>{});
+  return null;
+}
+function setOrgSize(o,pct){
+  T.logoW[o.id]=pct/(K/10);
+  /* 套用到所有用這個機構、且這一張沒有手動調過大小的卡片 */
+  T.rows.forEach(r=>{ if(r.orgId===o.id && r.ov && r.ov.lw!=null && !r.ov.lwManual) delete r.ov.lw; });
+  calKey=''; render(); syncSel();
+}
+function paintOrgSizes(){
+  const box=$('orgSizes'); if(!box) return;
+  box.innerHTML='';
+  ORGS.forEach(o=>{
+    const d=document.createElement('div'); d.className='osz';
+    const v=orgSizeVal(o);
+    d.innerHTML=`<span class="nm">${o.label}</span>`+
+      `<input type="number" min="1" max="200" step="0.5" value="${v==null?'':v.toFixed(1)}">`+
+      `<span class="u">%</span>`;
+    const inp=d.querySelector('input');
+    inp.oninput=()=>{ const n=+inp.value; if(!isNaN(n)&&n>0) setOrgSize(o,n); };
+    box.appendChild(d);
+  });
+  if(!ORGS.length) box.innerHTML='<p class="note" style="margin:0">還沒有機構，先上傳一個 LOGO。</p>';
 }
 function rowTitle(r){
   const o=ORGS.find(o=>o.id===r.orgId);
