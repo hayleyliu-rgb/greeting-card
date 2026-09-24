@@ -570,7 +570,7 @@ function healSigs(){
   if(fixed){ SIGS=sortSigs(SIGS); saveSigs(); }
   return fixed;
 }
-healSigs(); dedupByName();
+healSigs();
 const sigOf=r=>{ if(!r) return null;
   if(r.sigId){
     const s=SIGS.find(s=>s.id===r.sigId);
@@ -1642,7 +1642,7 @@ async function syncRoster(){
   SIGS = anyOrd
     ? SIGS.slice().sort((a,b)=>(a.ord==null?9999:a.ord)-(b.ord==null?9999:b.ord))
     : sortSigs(SIGS);
-  healSigs(); dedupByName();
+  healSigs();
   return {ok:true, src:'雲端名單', miss:SIGS.filter(x=>!x.img&&x.active!==false).length, ordered:anyOrd};
 }
 
