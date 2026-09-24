@@ -538,6 +538,22 @@ function saveSigs(){ try{ localStorage.setItem(SIGKEY,JSON.stringify(SIGS)); }ca
 /* 自我修復：
    (1) 簽名圖不見了就從內建素材補回來（曾因同步時建出 img:null 的重複條目而掉圖）
    (2) 同名同職稱的重複條目合併成一筆，有圖的優先留下 */
+function dedupByName(){
+  const best={};
+  SIGS.forEach(s=>{ const n=s.name; const c=best[n];
+    if(!c) best[n]=s; else if(!c.img && s.img) best[n]=s; });
+  const seen={}, out=[];
+  SIGS.forEach(s=>{ const n=s.name; if(seen[n]) return; seen[n]=1;
+    const keep=best[n];
+    SIGS.forEach(o=>{ if(o.name!==n) return;
+      ['k','dx','dy','bx','by','unit','tune'].forEach(f=>{
+        if((keep[f]===undefined||keep[f]===''||keep[f]===0)&&o[f]!==undefined&&o[f]!=='') keep[f]=o[f];
+      });
+    });
+    out.push(keep);
+  });
+  if(out.length!==SIGS.length){ SIGS=out; saveSigs(); }
+}
 function healSigs(){
   let fixed=0;
   SIGS.forEach(s=>{ if(!s.img && (A.sigs||{})[s.name]){ s.img=A.sigs[s.name]; fixed++; } });
@@ -554,7 +570,7 @@ function healSigs(){
   if(fixed){ SIGS=sortSigs(SIGS); saveSigs(); }
   return fixed;
 }
-healSigs();
+healSigs(); dedupByName();
 const sigOf=r=>{ if(!r) return null;
   if(r.sigId){
     const s=SIGS.find(s=>s.id===r.sigId);
@@ -1626,7 +1642,7 @@ async function syncRoster(){
   SIGS = anyOrd
     ? SIGS.slice().sort((a,b)=>(a.ord==null?9999:a.ord)-(b.ord==null?9999:b.ord))
     : sortSigs(SIGS);
-  healSigs();
+  healSigs(); dedupByName();
   return {ok:true, src:'雲端名單', miss:SIGS.filter(x=>!x.img&&x.active!==false).length, ordered:anyOrd};
 }
 
