@@ -1426,6 +1426,10 @@ function adopt(j,msg){
   }
   T.logoW=Object.assign(T.logoW||{}, j.logoW||{});
   T.rows=(j.rows||[]).map(r=>Object.assign({},r,{signed:true},{ov:clone(r.ov||{})}));
+  /* 保存發佈時每個人排好的整列，前台選人時直接沿用，不重建成預設 */
+  PUBROWS={};
+  T.rows.forEach(r=>{ const nm=r.nm||sigNameOf(r);
+    if(nm) PUBROWS[nm+'|'+(r.l2||'')]=clone(r); if(nm&&!PUBROWS[nm]) PUBROWS[nm]=clone(r); });
   if(!T.rows.length) T.rows=freshRows();
   /* 把逐張微調也照「人」索引一份，前台挑到誰就套誰那張的設定 */
   TUNE={};
@@ -1690,16 +1694,25 @@ async function pushCard(){
 }
 
 const people=()=>SIGS.filter(s=>s.active!==false);
-let fPick=null;
+let fPick=null, PUBROWS={};
 
 function applyPerson(s){
   if(!s) return;
   fPick=s.id;
-  const o=ORGS.find(g=>g.id===s.orgId)||null;
-  const tuned=s.tune||TUNE[s.id]||TUNE['n:'+s.name]||null;
-  T.rows=[{id:'f1', orgId:o?o.id:null, signed:true,
-           l1:(s.unit&&s.unit.trim())?s.unit:(o?(o.line1||o.label):''), l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true,
-           ov:tuned?clone(tuned):{}}];
+  /* 前台選人：優先沿用「發佈時排好的那一列」，位置/落款/微調完全照後台，
+     這樣前台和後台一定長一樣。找不到才退回重建。 */
+  let pub=PUBROWS[s.name+'|'+(s.title||'')]||PUBROWS[s.name];
+  if(pub){
+    const r=clone(pub); r.id='f1'; r.sigId=s.id; r.nm=s.name; r.on=true; r.signed=true;
+    if(r.l2===undefined) r.l2=s.title||'';
+    T.rows=[r];
+  } else {
+    const o=ORGS.find(g=>g.id===s.orgId)||null;
+    const tuned=s.tune||TUNE[s.id]||TUNE['n:'+s.name]||null;
+    T.rows=[{id:'f1', orgId:o?o.id:null, signed:true,
+             l1:(s.unit&&s.unit.trim())?s.unit:(o?(o.line1||o.label):''), l2:s.title||'', sigId:s.id, nm:s.name, sig:null, on:true,
+             ov:tuned?clone(tuned):{}}];
+  }
   S.cur=0; S.sel=null;
   paintPeople(); render();
 }
