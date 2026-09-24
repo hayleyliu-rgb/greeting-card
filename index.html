@@ -846,9 +846,16 @@ async function render(){
     const wide=()=>{ const p=[wT,sw,wK].filter(v=>v>0);
       return p.reduce((a,b)=>a+b,0)+gap*Math.max(0,p.length-1); };
     let w2=wide();
-    const cap=(G.maxW||.86)*T.W, kf=Math.min(1, cap/(indent+w2));
+    /* 硬防呆：不管字寬量得準不準，落款整組一定夾在左右安全邊界內，
+       避免不同裝置（手機字體晚載入）算出不同寬度而切邊。 */
+    const safe=0.045*T.W, avail=T.W-safe*2;
+    let kf=Math.min(1, avail/(indent+w2));
     if(kf<1){ sw*=kf; sh*=kf; gap*=kf; indent*=kf; w2=wide(); }
-    const l1L=G.cx*T.W-(indent+w2)/2+blkX(r)*T.W, l2L=l1L+indent;
+    let l1L=G.cx*T.W-(indent+w2)/2+blkX(r)*T.W;
+    const blockW=indent+w2;
+    if(l1L<safe) l1L=safe;                          // 不讓左緣超出
+    if(l1L+blockW>T.W-safe) l1L=T.W-safe-blockW;    // 不讓右緣超出
+    const l2L=l1L+indent;
     const y1=G.y1*T.H+blkY(r)*T.H, y2=y1+G.dy2*T.H, yS=y1+G.dySig*T.H;
     if(r.l1){ const x=l1L+G.o1.x*T.W, y=y1+G.o1.y*T.H;
       const q=drawRun(r.l1,x,y,LS); hits.l1={x,y,w:q.w,h:q.ascent+q.desc}; }
@@ -1460,6 +1467,8 @@ const toBlob=(t,q)=>new Promise(r=>cv.toBlob(r,t,q));
 /* 下載時先用原尺寸重畫一次，畫完再切回預覽倍率 */
 async function blobFor(fmt){
   const keep=MAXPREV_OVERRIDE; MAXPREV_OVERRIDE=1e9;
+  await document.fonts.ready.catch(()=>{});   // 確保字體載入後才量、才畫
+  calKey='';
   await render();
   let out;
   if(fmt==='png') out=await toBlob('image/png');
