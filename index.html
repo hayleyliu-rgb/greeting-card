@@ -431,11 +431,11 @@ const FONTS=[
 
 /* 機構 LOGO 跨賀卡共用：底圖每年換，機構不會換。存在瀏覽器裡，
    換底圖、開新賀卡都不會掉。 */
-const ORGKEY='cardgen.orgs.v2';
+const ORGKEY='cardgen.orgs.v3';
 function defaultOrgs(){ return [
   {id:'hospital', label:'聯新國際醫院',        logo:A.orgs.hospital, line1:'聯新國際醫院'},
   {id:'medical',  label:'聯新國際醫療',        logo:A.orgs.medical,  line1:'聯新國際醫療'},
-  {id:'taoshin',  label:'聯新國際醫療 桃新醫院', logo:A.orgs.taoshin,  line1:'聯新國際醫療'},
+  {id:'taoshin',  label:'聯新國際醫療 桃新醫院', logo:A.orgs.taoshin,  line1:'聯新國際醫院'},
   {id:'bansin',   label:'聯新國際醫療 板新醫院', logo:A.orgs.bansin,   line1:'聯新國際醫療'}
 ];}
 let ORGS=(()=>{ try{ const j=JSON.parse(localStorage.getItem(ORGKEY)||'null');
